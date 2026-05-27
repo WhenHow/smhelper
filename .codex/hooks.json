@@ -1,0 +1,28 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run python .codex/scripts/update_code_map.py",
+            "timeout": 30,
+            "statusMessage": "Updating CODE_MAP.md before prompt"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run python .codex/scripts/update_code_map.py",
+            "timeout": 30,
+            "statusMessage": "Updating CODE_MAP.md before stop"
+          }
+        ]
+      }
+    ]
+  }
+}

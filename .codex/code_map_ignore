@@ -1,0 +1,34 @@
+# generated / cache
+.git/
+.venv/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+build/
+dist/
+htmlcov/
+.coverage
+.coverage.*
+*.egg-info/
+
+# noisy lock / generated files
+uv.lock
+skills-lock.json
+*.pyc
+*.pyo
+*.log
+*.sqlite
+*.db
+
+# large binary assets
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+*.mp4
+*.zip
+
+# project scratch space
+tmp/
