@@ -1,7 +1,12 @@
+from __future__ import annotations
+
+from click.testing import CliRunner
+
 from smhelper import main
 
 
-def test_main_prints_greeting(capsys) -> None:
-    main()
+def test_main_exposes_live_assistant_command() -> None:
+    result = CliRunner().invoke(main, ["--help"])
 
-    assert capsys.readouterr().out == "Hello from smhelper!\n"
+    assert result.exit_code == 0
+    assert "live-assistant" in result.output

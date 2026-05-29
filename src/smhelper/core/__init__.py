@@ -1,0 +1,1 @@
+"""Cross-context technical primitives."""
