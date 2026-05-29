@@ -24,3 +24,7 @@ settings.local.yaml
 .mypy_cache
 .ruff_cache
 .smhelper/
+
+# Runtime data
+data/*
+!data/.gitkeep

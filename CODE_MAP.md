@@ -14,6 +14,8 @@
 |   |-- hooks.json
 |   `-- scripts/
 |       `-- update_code_map.py
+|-- data/
+|   `-- .gitkeep
 |-- docs/
 |   |-- live-assistant-prd.md
 |   |-- live-distributed-architecture.md
