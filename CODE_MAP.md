@@ -24,42 +24,156 @@
 |   `-- smhelper/
 |       |-- __init__.py
 |       |-- cli.py
+|       |-- accounts/
+|       |   |-- __init__.py
+|       |   `-- domain/
+|       |       |-- __init__.py
+|       |       |-- account_auth_state.py
+|       |       |-- account_node_binding.py
+|       |       `-- platform_account.py
 |       |-- core/
 |       |   |-- __init__.py
 |       |   |-- clock.py
 |       |   |-- config.py
 |       |   |-- exceptions.py
 |       |   `-- ids.py
-|       `-- live_assistant/
+|       |-- infrastructure/
+|       |   |-- __init__.py
+|       |   |-- ai/
+|       |   |   |-- __init__.py
+|       |   |   `-- litellm_question_generator.py
+|       |   |-- asr/
+|       |   |   |-- __init__.py
+|       |   |   `-- provider_adapter.py
+|       |   |-- media/
+|       |   |   |-- __init__.py
+|       |   |   `-- ffmpeg/
+|       |   |       |-- __init__.py
+|       |   |       |-- audio.py
+|       |   |       |-- screenshots.py
+|       |   |       |-- segment_recorder.py
+|       |   |       `-- segment_scanner.py
+|       |   |-- persistence/
+|       |   |   |-- __init__.py
+|       |   |   `-- sqlalchemy/
+|       |   |       |-- __init__.py
+|       |   |       |-- accounts.py
+|       |   |       |-- base.py
+|       |   |       |-- live.py
+|       |   |       |-- session.py
+|       |   |       `-- workers.py
+|       |   `-- task_queue/
+|       |       |-- __init__.py
+|       |       `-- celery/
+|       |           |-- __init__.py
+|       |           |-- app.py
+|       |           |-- publisher.py
+|       |           `-- tasks.py
+|       |-- live/
+|       |   |-- __init__.py
+|       |   |-- application/
+|       |   |   |-- __init__.py
+|       |   |   `-- use_cases/
+|       |   |       |-- __init__.py
+|       |   |       |-- approve_candidate_question.py
+|       |   |       `-- plan_account_entries.py
+|       |   `-- domain/
+|       |       |-- __init__.py
+|       |       |-- account_live_session.py
+|       |       |-- candidate_question.py
+|       |       |-- dispatch_job.py
+|       |       |-- send_attempt.py
+|       |       `-- policies/
+|       |           |-- __init__.py
+|       |           |-- account_entry_policy.py
+|       |           |-- send_account_policy.py
+|       |           `-- shutdown_policy.py
+|       |-- live_assistant/
+|       |   |-- __init__.py
+|       |   |-- application/
+|       |   |   |-- __init__.py
+|       |   |   |-- commands.py
+|       |   |   |-- exceptions.py
+|       |   |   |-- handlers.py
+|       |   |   `-- ports.py
+|       |   |-- domain/
+|       |   |   |-- __init__.py
+|       |   |   |-- exceptions.py
+|       |   |   |-- models.py
+|       |   |   |-- repositories.py
+|       |   |   `-- services.py
+|       |   |-- infrastructure/
+|       |   |   |-- __init__.py
+|       |   |   |-- cloakbrowser.py
+|       |   |   |-- local_state.py
+|       |   |   `-- memory.py
+|       |   `-- interfaces/
+|       |       |-- __init__.py
+|       |       `-- cli.py
+|       |-- platforms/
+|       |   |-- __init__.py
+|       |   `-- xhs/
+|       |       |-- __init__.py
+|       |       `-- browser/
+|       |           |-- __init__.py
+|       |           |-- selectors.py
+|       |           `-- stream_discovery.py
+|       |-- web/
+|       |   |-- __init__.py
+|       |   |-- admin.py
+|       |   |-- api.py
+|       |   |-- app.py
+|       |   `-- admin_views/
+|       |       |-- __init__.py
+|       |       |-- accounts.py
+|       |       |-- candidates.py
+|       |       |-- dispatch_jobs.py
+|       |       |-- live_tasks.py
+|       |       |-- sessions.py
+|       |       `-- workers.py
+|       `-- workers/
 |           |-- __init__.py
-|           |-- application/
-|           |   |-- __init__.py
-|           |   |-- commands.py
-|           |   |-- exceptions.py
-|           |   |-- handlers.py
-|           |   `-- ports.py
-|           |-- domain/
-|           |   |-- __init__.py
-|           |   |-- exceptions.py
-|           |   |-- models.py
-|           |   |-- repositories.py
-|           |   `-- services.py
-|           |-- infrastructure/
-|           |   |-- __init__.py
-|           |   |-- cloakbrowser.py
-|           |   |-- local_state.py
-|           |   `-- memory.py
-|           `-- interfaces/
+|           `-- domain/
 |               |-- __init__.py
-|               `-- cli.py
+|               |-- rendezvous_hashing.py
+|               `-- worker_node.py
 `-- tests/
     |-- test_cli.py
     |-- test_update_code_map.py
+    |-- accounts/
+    |   `-- test_platform_account.py
     |-- core/
     |   |-- test_config.py
     |   `-- test_ids.py
-    `-- live_assistant/
-        |-- test_cloakbrowser_login.py
-        |-- test_handlers.py
-        |-- test_live_assistant_cli.py
-        `-- test_local_state.py
+    |-- infrastructure/
+    |   |-- ai/
+    |   |   `-- test_litellm_question_generator.py
+    |   |-- asr/
+    |   |   `-- test_provider_adapter.py
+    |   |-- media/
+    |   |   `-- test_ffmpeg_tools.py
+    |   |-- persistence/
+    |   |   |-- test_sqlalchemy_records.py
+    |   |   `-- test_sqlalchemy_session.py
+    |   `-- task_queue/
+    |       `-- test_celery_publisher.py
+    |-- live/
+    |   |-- test_account_live_session_policy.py
+    |   |-- test_approve_candidate_question.py
+    |   |-- test_candidate_and_dispatch.py
+    |   |-- test_live_task_shutdown_policy.py
+    |   |-- test_plan_account_entries.py
+    |   `-- test_send_account_policy.py
+    |-- live_assistant/
+    |   |-- test_cloakbrowser_login.py
+    |   |-- test_handlers.py
+    |   |-- test_live_assistant_cli.py
+    |   `-- test_local_state.py
+    |-- platforms/
+    |   `-- xhs/
+    |       `-- test_stream_discovery.py
+    |-- web/
+    |   |-- test_account_storage_state_api.py
+    |   `-- test_admin_app.py
+    `-- workers/
+        `-- test_rendezvous_hashing.py

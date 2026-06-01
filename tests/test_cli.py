@@ -10,3 +10,11 @@ def test_main_exposes_live_assistant_command() -> None:
 
     assert result.exit_code == 0
     assert "live-assistant" in result.output
+
+
+def test_main_exposes_web_command() -> None:
+    result = CliRunner().invoke(main, ["web", "--help"])
+
+    assert result.exit_code == 0
+    assert "--database-url" in result.output
+    assert "--port" in result.output

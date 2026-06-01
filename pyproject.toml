@@ -13,9 +13,14 @@ dependencies = [
     "click>=8.4.1",
     "cloakbrowser>=0.3.30",
     "dynaconf>=3.2.13",
+    "fastapi>=0.136.3",
+    "itsdangerous>=2.2.0",
+    "litellm>=1.86.2",
     "pydantic>=2.13.4",
     "redis>=7.4.0",
+    "sqladmin>=0.27.0",
     "sqlalchemy>=2.0.50",
+    "uvicorn>=0.48.0",
 ]
 
 [project.scripts]
@@ -27,6 +32,7 @@ build-backend = "hatchling.build"
 
 [dependency-groups]
 dev = [
+    "httpx2>=2.3.0",
     "mypy>=2.1.0",
     "pytest>=9.0.3",
     "pytest-cov>=7.1.0",
