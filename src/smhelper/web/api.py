@@ -2,17 +2,42 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from pathlib import Path
+from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Request
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from starlette.responses import FileResponse
 
 from smhelper.infrastructure.persistence.sqlalchemy.accounts import (
     AccountAuthStateRecord,
 )
+from smhelper.infrastructure.persistence.sqlalchemy.live import (
+    AccountLiveSessionRecord,
+    DispatchJobRecord,
+    SendAttemptRecord,
+)
 
 router = APIRouter(prefix="/api")
+
+
+class SessionStatusReport(BaseModel):
+    """Worker-reported account live session status."""
+
+    status: str
+    failure_reason: str | None = None
+
+
+class SendResultReport(BaseModel):
+    """Worker-reported result for one send dispatch job."""
+
+    dispatch_job_id: str
+    session_id: str
+    account_id: str
+    status: str
+    failure_reason: str | None = None
 
 
 @router.get("/accounts/{platform}/{account_id}/storage-state")
@@ -35,3 +60,76 @@ def get_account_storage_state(
     if not storage_state_path.exists():
         raise HTTPException(status_code=404, detail="storage state file not found")
     return FileResponse(storage_state_path, media_type="application/json")
+
+
+@router.post("/live/sessions/{session_id}/status")
+def report_session_status(
+    *,
+    request: Request,
+    session_id: str,
+    report: SessionStatusReport,
+) -> dict[str, str]:
+    """Persist worker-reported session status."""
+    now = datetime.now(tz=UTC)
+    with Session(request.app.state.engine) as db_session:
+        session_record = db_session.get(AccountLiveSessionRecord, session_id)
+        if session_record is None:
+            raise HTTPException(status_code=404, detail="session not found")
+
+        session_record.status = report.status
+        session_record.failure_reason = report.failure_reason
+        session_record.last_heartbeat_at = now
+        session_record.active_slot_key = AccountLiveSessionRecord.build_active_slot_key(
+            live_task_id=session_record.live_task_id,
+            account_id=session_record.account_id,
+            status=report.status,
+        )
+        if session_record.active_slot_key is None:
+            session_record.closed_at = now
+        db_session.commit()
+
+    return {"status": "ok"}
+
+
+@router.post("/live/send-results")
+def report_send_result(
+    *,
+    request: Request,
+    report: SendResultReport,
+) -> dict[str, str]:
+    """Persist worker-reported send result and update related records."""
+    now = datetime.now(tz=UTC)
+    with Session(request.app.state.engine) as db_session:
+        dispatch_job = db_session.get(DispatchJobRecord, report.dispatch_job_id)
+        session_record = db_session.get(AccountLiveSessionRecord, report.session_id)
+        if dispatch_job is None:
+            raise HTTPException(status_code=404, detail="dispatch job not found")
+        if session_record is None:
+            raise HTTPException(status_code=404, detail="session not found")
+
+        normalized_status = "success" if report.status == "success" else "failed"
+        db_session.add(
+            SendAttemptRecord(
+                id=f"attempt-{uuid4().hex}",
+                dispatch_job_id=report.dispatch_job_id,
+                account_live_session_id=report.session_id,
+                account_id=report.account_id,
+                status=normalized_status,
+                success_detection="operation_completed",
+                attempted_at=now,
+                failure_reason=report.failure_reason,
+            )
+        )
+        dispatch_job.status = normalized_status
+        dispatch_job.finished_at = now
+        dispatch_job.failure_reason = report.failure_reason
+        session_record.status = "waiting"
+        session_record.last_send_at = now if normalized_status == "success" else None
+        session_record.active_slot_key = AccountLiveSessionRecord.build_active_slot_key(
+            live_task_id=session_record.live_task_id,
+            account_id=session_record.account_id,
+            status=session_record.status,
+        )
+        db_session.commit()
+
+    return {"status": "ok"}

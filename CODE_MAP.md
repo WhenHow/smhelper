@@ -49,7 +49,9 @@
 |       |   |   |-- __init__.py
 |       |   |   `-- ffmpeg/
 |       |   |       |-- __init__.py
+|       |   |       |-- artifact_extractor.py
 |       |   |       |-- audio.py
+|       |   |       |-- runner.py
 |       |   |       |-- screenshots.py
 |       |   |       |-- segment_recorder.py
 |       |   |       `-- segment_scanner.py
@@ -67,22 +69,31 @@
 |       |       `-- celery/
 |       |           |-- __init__.py
 |       |           |-- app.py
+|       |           |-- node_handler.py
+|       |           |-- node_tasks.py
 |       |           |-- publisher.py
 |       |           `-- tasks.py
 |       |-- live/
 |       |   |-- __init__.py
 |       |   |-- application/
 |       |   |   |-- __init__.py
+|       |   |   |-- ports/
+|       |   |   |   |-- __init__.py
+|       |   |   |   |-- media_artifacts.py
+|       |   |   |   |-- question_generator.py
+|       |   |   |   `-- speech_to_text.py
 |       |   |   `-- use_cases/
 |       |   |       |-- __init__.py
 |       |   |       |-- approve_candidate_question.py
-|       |   |       `-- plan_account_entries.py
+|       |   |       |-- plan_account_entries.py
+|       |   |       `-- process_segment.py
 |       |   `-- domain/
 |       |       |-- __init__.py
 |       |       |-- account_live_session.py
 |       |       |-- candidate_question.py
 |       |       |-- dispatch_job.py
 |       |       |-- send_attempt.py
+|       |       |-- transcript.py
 |       |       `-- policies/
 |       |           |-- __init__.py
 |       |           |-- account_entry_policy.py
@@ -151,18 +162,22 @@
     |   |-- asr/
     |   |   `-- test_provider_adapter.py
     |   |-- media/
+    |   |   |-- test_ffmpeg_artifact_extractor.py
     |   |   `-- test_ffmpeg_tools.py
     |   |-- persistence/
     |   |   |-- test_sqlalchemy_records.py
     |   |   `-- test_sqlalchemy_session.py
     |   `-- task_queue/
-    |       `-- test_celery_publisher.py
+    |       |-- test_celery_publisher.py
+    |       |-- test_node_browser_task_handler.py
+    |       `-- test_node_task_registration.py
     |-- live/
     |   |-- test_account_live_session_policy.py
     |   |-- test_approve_candidate_question.py
     |   |-- test_candidate_and_dispatch.py
     |   |-- test_live_task_shutdown_policy.py
     |   |-- test_plan_account_entries.py
+    |   |-- test_process_segment.py
     |   `-- test_send_account_policy.py
     |-- live_assistant/
     |   |-- test_cloakbrowser_login.py

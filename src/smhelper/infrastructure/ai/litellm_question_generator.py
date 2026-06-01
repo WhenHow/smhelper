@@ -9,6 +9,10 @@ from os import environ
 from typing import cast
 
 from smhelper.core.exceptions import SmHelperError
+from smhelper.live.application.ports.question_generator import (
+    GeneratedQuestionDraft,
+    QuestionGenerationPrompt,
+)
 
 
 class QuestionGenerationError(SmHelperError):
@@ -16,26 +20,6 @@ class QuestionGenerationError(SmHelperError):
 
 
 CompletionCallable = Callable[..., object]
-
-
-@dataclass(frozen=True, slots=True)
-class QuestionGenerationPrompt:
-    """Inputs used to generate a candidate live-room question."""
-
-    product_context: str
-    recent_transcript: str
-    task_context: str
-
-
-@dataclass(frozen=True, slots=True)
-class GeneratedQuestionDraft:
-    """Parsed LLM candidate question before persistence."""
-
-    question: str
-    reason: str
-    risk_level: str
-    raw_response: str
-    parse_warning: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

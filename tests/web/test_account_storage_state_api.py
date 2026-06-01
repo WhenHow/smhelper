@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -7,6 +8,11 @@ from sqlalchemy.orm import Session
 
 from smhelper.infrastructure.persistence.sqlalchemy.accounts import (
     AccountAuthStateRecord,
+)
+from smhelper.infrastructure.persistence.sqlalchemy.live import (
+    AccountLiveSessionRecord,
+    DispatchJobRecord,
+    SendAttemptRecord,
 )
 from smhelper.infrastructure.persistence.sqlalchemy.session import (
     create_engine_from_url,
@@ -73,4 +79,113 @@ def test_storage_state_api_returns_404_for_expired_auth_state(tmp_path: Path) ->
         response = client.get("/api/accounts/xhs/account-1/storage-state")
 
     assert response.status_code == 404
+    engine.dispose()
+
+
+def test_session_status_api_updates_worker_reported_session_state(
+    tmp_path: Path,
+) -> None:
+    database_path = tmp_path / "smhelper.db"
+    engine = create_engine_from_url(f"sqlite+pysqlite:///{database_path}")
+    app = create_app(
+        engine=engine,
+        admin_credentials=AdminCredentials(
+            username="admin",
+            password="secret",
+            secret_key="test-secret",
+        ),
+    )
+    with Session(engine) as session:
+        session.add(
+            AccountLiveSessionRecord(
+                id="session-1",
+                live_task_id="live-1",
+                platform="xhs",
+                room_url="https://example.com/live/1",
+                account_id="account-1",
+                node_id="node-a",
+                status="starting",
+                active_slot_key="live-1:account-1",
+            )
+        )
+        session.commit()
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/live/sessions/session-1/status",
+            json={"status": "waiting", "failure_reason": None},
+        )
+
+    assert response.status_code == 200
+    with Session(engine) as session:
+        session_record = session.get(AccountLiveSessionRecord, "session-1")
+        assert session_record is not None
+        assert session_record.status == "waiting"
+        assert session_record.active_slot_key == "live-1:account-1"
+    engine.dispose()
+
+
+def test_send_result_api_records_attempt_and_updates_dispatch_job(
+    tmp_path: Path,
+) -> None:
+    database_path = tmp_path / "smhelper.db"
+    engine = create_engine_from_url(f"sqlite+pysqlite:///{database_path}")
+    app = create_app(
+        engine=engine,
+        admin_credentials=AdminCredentials(
+            username="admin",
+            password="secret",
+            secret_key="test-secret",
+        ),
+    )
+    with Session(engine) as session:
+        session.add(
+            AccountLiveSessionRecord(
+                id="session-1",
+                live_task_id="live-1",
+                platform="xhs",
+                room_url="https://example.com/live/1",
+                account_id="account-1",
+                node_id="node-a",
+                status="sending",
+                active_slot_key="live-1:account-1",
+            )
+        )
+        session.add(
+            DispatchJobRecord(
+                id="job-1",
+                candidate_question_id="candidate-1",
+                live_task_id="live-1",
+                account_live_session_id="session-1",
+                account_id="account-1",
+                final_text="Is this suitable for oily skin?",
+                status="running",
+                created_at=datetime(2026, 6, 1, 12, 0, tzinfo=UTC),
+            )
+        )
+        session.commit()
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/live/send-results",
+            json={
+                "dispatch_job_id": "job-1",
+                "session_id": "session-1",
+                "account_id": "account-1",
+                "status": "success",
+                "failure_reason": None,
+            },
+        )
+
+    assert response.status_code == 200
+    with Session(engine) as session:
+        job = session.get(DispatchJobRecord, "job-1")
+        session_record = session.get(AccountLiveSessionRecord, "session-1")
+        attempts = session.query(SendAttemptRecord).all()
+        assert job is not None
+        assert job.status == "success"
+        assert session_record is not None
+        assert session_record.status == "waiting"
+        assert len(attempts) == 1
+        assert attempts[0].success_detection == "operation_completed"
     engine.dispose()
