@@ -61,6 +61,7 @@
 |       |   |       |-- __init__.py
 |       |   |       |-- accounts.py
 |       |   |       |-- base.py
+|       |   |       |-- candidate_dispatcher.py
 |       |   |       |-- live.py
 |       |   |       |-- session.py
 |       |   |       `-- workers.py
@@ -165,6 +166,7 @@
     |   |   |-- test_ffmpeg_artifact_extractor.py
     |   |   `-- test_ffmpeg_tools.py
     |   |-- persistence/
+    |   |   |-- test_candidate_dispatcher.py
     |   |   |-- test_sqlalchemy_records.py
     |   |   `-- test_sqlalchemy_session.py
     |   `-- task_queue/
@@ -189,6 +191,7 @@
     |       `-- test_stream_discovery.py
     |-- web/
     |   |-- test_account_storage_state_api.py
-    |   `-- test_admin_app.py
+    |   |-- test_admin_app.py
+    |   `-- test_candidate_approve_action.py
     `-- workers/
         `-- test_rendezvous_hashing.py

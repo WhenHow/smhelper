@@ -23,6 +23,9 @@ class CeleryApplication(Protocol):
 
     conf: CeleryConfig
 
+    def send_task(self, name: str, *, kwargs: dict[str, str], queue: str) -> object:
+        """Send a task to a named queue."""
+
 
 class CeleryFactory(Protocol):
     """Callable constructor exposed by the celery package."""

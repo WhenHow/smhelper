@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-from typing import ClassVar
+from typing import ClassVar, Protocol
 
-from sqlalchemy import select
 from sqladmin import ModelView, action
 from starlette.requests import Request
 from starlette.responses import RedirectResponse
@@ -12,9 +11,22 @@ from starlette.responses import RedirectResponse
 from smhelper.infrastructure.persistence.sqlalchemy.live import CandidateQuestionRecord
 
 
+class CandidateDispatcher(Protocol):
+    """Dispatch service used by the SQLAdmin approve action."""
+
+    def approve_and_dispatch(
+        self,
+        *,
+        candidate_ids: list[str],
+        reviewed_by: str,
+    ) -> list[str]:
+        """Approve candidates and publish send jobs."""
+
+
 class CandidateQuestionAdmin(ModelView, model=CandidateQuestionRecord):
     """Review, edit and approve generated candidate questions."""
 
+    candidate_dispatcher: ClassVar[CandidateDispatcher | None] = None
     name_plural = "Candidate Questions"
     column_list: ClassVar[list[str]] = [
         "id",
@@ -35,22 +47,19 @@ class CandidateQuestionAdmin(ModelView, model=CandidateQuestionRecord):
         confirmation_message="Approve selected candidates for dispatch?",
     )
     async def approve_candidates(self, request: Request) -> RedirectResponse:
-        """Mark selected candidates as approved after operator edits final text."""
+        """Approve selected candidates and dispatch send jobs."""
         raw_pks = request.query_params.get("pks", "")
         candidate_ids = [
             candidate_id for candidate_id in raw_pks.split(",") if candidate_id
         ]
         if candidate_ids:
-            with self.session_maker() as session:
-                candidates = session.scalars(
-                    select(CandidateQuestionRecord).where(
-                        CandidateQuestionRecord.id.in_(candidate_ids)
-                    )
-                )
-                for candidate in candidates:
-                    if candidate.final_text and candidate.status == "pending_review":
-                        candidate.status = "approved"
-                session.commit()
+            reviewed_by = str(request.session.get("admin_user", "admin"))
+            if self.candidate_dispatcher is None:
+                raise RuntimeError("candidate dispatcher is not configured")
+            self.candidate_dispatcher.approve_and_dispatch(
+                candidate_ids=candidate_ids,
+                reviewed_by=reviewed_by,
+            )
         return RedirectResponse(
             request.headers.get("referer", "/admin/candidatequestion/list"),
             status_code=302,

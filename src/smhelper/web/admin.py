@@ -17,7 +17,10 @@ from smhelper.web.admin_views.accounts import (
     AccountAuthStateAdmin,
     PlatformAccountAdmin,
 )
-from smhelper.web.admin_views.candidates import CandidateQuestionAdmin
+from smhelper.web.admin_views.candidates import (
+    CandidateDispatcher,
+    CandidateQuestionAdmin,
+)
 from smhelper.web.admin_views.dispatch_jobs import DispatchJobAdmin, SendAttemptAdmin
 from smhelper.web.admin_views.live_tasks import LiveTaskAdmin
 from smhelper.web.admin_views.sessions import AccountLiveSessionAdmin
@@ -77,8 +80,10 @@ def configure_admin(
     app: FastAPI,
     engine: Engine,
     credentials: AdminCredentials,
+    candidate_dispatcher: CandidateDispatcher | None = None,
 ) -> Admin:
     """Attach SQLAdmin to the FastAPI app and register first-phase views."""
+    CandidateQuestionAdmin.candidate_dispatcher = candidate_dispatcher
     admin = Admin(
         app=app,
         engine=engine,
