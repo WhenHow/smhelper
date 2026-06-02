@@ -3,6 +3,9 @@ from __future__ import annotations
 from pathlib import Path
 
 from smhelper.infrastructure.media.ffmpeg.audio import build_extract_audio_command
+from smhelper.infrastructure.media.ffmpeg.runner import (
+    SubprocessBackgroundProcessStarter,
+)
 from smhelper.infrastructure.media.ffmpeg.screenshots import (
     build_first_frame_command,
     build_last_frame_command,
@@ -40,6 +43,18 @@ def test_segment_recorder_builds_fixed_time_ffmpeg_segment_command(
         "1",
         str(tmp_path / "segment_%05d.mp4"),
     ]
+
+
+def test_background_process_starter_starts_command_without_waiting() -> None:
+    calls: list[list[str]] = []
+
+    def fake_popen(command: list[str]) -> object:
+        calls.append(command)
+        return object()
+
+    SubprocessBackgroundProcessStarter(popen=fake_popen).start(["ffmpeg", "-version"])
+
+    assert calls == [["ffmpeg", "-version"]]
 
 
 def test_segment_scanner_treats_previous_file_as_complete_when_next_segment_exists(

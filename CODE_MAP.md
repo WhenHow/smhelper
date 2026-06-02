@@ -68,6 +68,7 @@
 |       |   |       |-- candidate_reviewer.py
 |       |   |       |-- live.py
 |       |   |       |-- live_task_shutdown_coordinator.py
+|       |   |       |-- live_task_starter.py
 |       |   |       |-- live_task_terminator.py
 |       |   |       |-- segment_processor.py
 |       |   |       |-- segment_processor_factory.py
@@ -193,6 +194,7 @@
     |   |   |-- test_candidate_dispatcher.py
     |   |   |-- test_candidate_reviewer.py
     |   |   |-- test_live_task_shutdown_coordinator.py
+    |   |   |-- test_live_task_starter.py
     |   |   |-- test_live_task_terminator.py
     |   |   |-- test_segment_processor.py
     |   |   |-- test_segment_processor_factory.py
