@@ -40,6 +40,28 @@ def test_create_app_registers_sqladmin_route_and_model_views() -> None:
     engine.dispose()
 
 
+def test_create_app_wires_forbidden_terms_from_runtime_settings(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SMHELPER_FORBIDDEN_TERMS", "sensitive, refund")
+    engine = create_engine_from_url("sqlite+pysqlite:///:memory:")
+
+    app = create_app(
+        engine=engine,
+        admin_credentials=AdminCredentials(
+            username="admin",
+            password="secret",
+            secret_key="test-secret",
+        ),
+    )
+
+    assert app.state.candidate_dispatcher.forbidden_terms == (
+        "sensitive",
+        "refund",
+    )
+    engine.dispose()
+
+
 @pytest.mark.parametrize(
     ("username", "password", "expected_status"),
     [

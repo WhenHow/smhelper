@@ -35,6 +35,7 @@ class RuntimeSettings:
     ffmpeg_path: str
     llm_model: str | None
     llm_fallback_models: tuple[str, ...]
+    forbidden_terms: tuple[str, ...]
     asr_provider_name: str | None
     asr_provider_callable: str | None
     default_platform: str = "xhs"
@@ -93,6 +94,7 @@ class RuntimeSettings:
         llm_fallback_models = _optional_csv_setting(
             source.get("SMHELPER_LLM_FALLBACK_MODELS")
         )
+        forbidden_terms = _optional_csv_setting(source.get("SMHELPER_FORBIDDEN_TERMS"))
         asr_provider_name = _optional_setting(source.get("SMHELPER_ASR_PROVIDER_NAME"))
         asr_provider_callable = _optional_setting(
             source.get("SMHELPER_ASR_PROVIDER_CALLABLE")
@@ -137,6 +139,7 @@ class RuntimeSettings:
             ffmpeg_path=ffmpeg_path,
             llm_model=llm_model,
             llm_fallback_models=llm_fallback_models,
+            forbidden_terms=forbidden_terms,
             asr_provider_name=asr_provider_name,
             asr_provider_callable=asr_provider_callable,
             default_platform=platform,

@@ -32,6 +32,7 @@ def test_runtime_settings_uses_env_state_path_and_default_platform(
             "SMHELPER_FFMPEG_PATH": "ffmpeg-custom",
             "SMHELPER_LLM_MODEL": "vendor/main-model",
             "SMHELPER_LLM_FALLBACK_MODELS": "vendor/fallback-a, vendor/fallback-b",
+            "SMHELPER_FORBIDDEN_TERMS": "sensitive, refund",
             "SMHELPER_ASR_PROVIDER_NAME": "vendor-a",
             "SMHELPER_ASR_PROVIDER_CALLABLE": "vendor.module:transcribe",
         }
@@ -54,6 +55,7 @@ def test_runtime_settings_uses_env_state_path_and_default_platform(
         "vendor/fallback-a",
         "vendor/fallback-b",
     )
+    assert settings.forbidden_terms == ("sensitive", "refund")
     assert settings.asr_provider_name == "vendor-a"
     assert settings.asr_provider_callable == "vendor.module:transcribe"
 
@@ -78,6 +80,7 @@ def test_runtime_settings_uses_cwd_state_path_when_env_is_empty(
     assert settings.ffmpeg_path == "ffmpeg"
     assert settings.llm_model is None
     assert settings.llm_fallback_models == ()
+    assert settings.forbidden_terms == ()
     assert settings.asr_provider_name is None
     assert settings.asr_provider_callable is None
 

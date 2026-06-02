@@ -33,6 +33,11 @@ from smhelper.live.domain.account_live_session import (
     AccountLiveSession,
     AccountLiveSessionStatus,
 )
+from smhelper.live.domain.candidate_question import (
+    CandidateQuestion,
+    CandidateQuestionStatus,
+    InvalidCandidateQuestion,
+)
 from smhelper.live.domain.policies.send_account_policy import (
     NoWaitingSessionAvailable,
     SendAccountPolicy,
@@ -55,6 +60,7 @@ class SqlAlchemyCandidateDispatcher:
     clock: Clock
     send_account_policy: SendAccountPolicy
     browser_task_publisher: SendCommentTaskPublisher
+    forbidden_terms: tuple[str, ...] = ()
 
     def approve_and_dispatch(
         self,
@@ -85,6 +91,14 @@ class SqlAlchemyCandidateDispatcher:
                 final_text = (candidate.final_text or "").strip()
                 if not final_text:
                     continue
+                approved_candidate = self._approve_candidate(
+                    candidate=candidate,
+                    final_text=final_text,
+                    reviewed_by=reviewed_by,
+                    reviewed_at=now,
+                )
+                if approved_candidate is None:
+                    continue
 
                 selected_session = self._select_waiting_session(
                     session=session,
@@ -99,9 +113,11 @@ class SqlAlchemyCandidateDispatcher:
                     continue
 
                 dispatch_job_id = self.ids.new_id("job")
-                candidate.status = "approved"
-                candidate.reviewed_by = reviewed_by
-                candidate.reviewed_at = now
+                candidate.status = approved_candidate.status.value
+                candidate.final_text = approved_candidate.final_text
+                candidate.reviewed_by = approved_candidate.reviewed_by
+                candidate.reviewed_at = approved_candidate.reviewed_at
+                candidate.rejection_reason = approved_candidate.rejection_reason
                 selected_session.status = "sending"
                 selected_session.send_started_at = now
                 session.add(
@@ -137,6 +153,24 @@ class SqlAlchemyCandidateDispatcher:
                 payload=payload,
             )
         return dispatched_job_ids
+
+    def _approve_candidate(
+        self,
+        *,
+        candidate: CandidateQuestionRecord,
+        final_text: str,
+        reviewed_by: str,
+        reviewed_at: datetime,
+    ) -> CandidateQuestion | None:
+        try:
+            return self._to_candidate(candidate).approve(
+                final_text=final_text,
+                reviewed_by=reviewed_by,
+                reviewed_at=reviewed_at,
+                forbidden_terms=self.forbidden_terms,
+            )
+        except InvalidCandidateQuestion:
+            return None
 
     @staticmethod
     def _load_running_live_task_ids(
@@ -273,4 +307,22 @@ class SqlAlchemyCandidateDispatcher:
             restart_count=record.restart_count,
             cooldown_until=record.cooldown_until,
             send_started_at=record.send_started_at,
+        )
+
+    @staticmethod
+    def _to_candidate(record: CandidateQuestionRecord) -> CandidateQuestion:
+        return CandidateQuestion(
+            id=record.id,
+            live_task_id=record.live_task_id,
+            segment_id=record.segment_id,
+            question=record.question,
+            reason=record.reason,
+            risk_level=record.risk_level,
+            raw_response=record.raw_response,
+            status=CandidateQuestionStatus(record.status),
+            generated_at=record.generated_at,
+            final_text=record.final_text,
+            reviewed_by=record.reviewed_by,
+            reviewed_at=record.reviewed_at,
+            rejection_reason=record.rejection_reason,
         )

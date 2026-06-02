@@ -107,6 +107,7 @@ def create_app(
         clock=resolved_clock,
         send_account_policy=SendAccountPolicy(rng=Random()),
         browser_task_publisher=resolved_browser_task_publisher,
+        forbidden_terms=settings.forbidden_terms,
     )
     app.state.candidate_reviewer = SqlAlchemyCandidateReviewer(
         session_factory=session_factory,
