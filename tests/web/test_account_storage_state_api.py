@@ -590,6 +590,95 @@ def test_send_result_api_ignores_duplicate_terminal_result(
     engine.dispose()
 
 
+def test_send_result_api_ignores_result_for_terminal_session(
+    tmp_path: Path,
+) -> None:
+    database_path = tmp_path / "smhelper.db"
+    engine = create_engine_from_url(f"sqlite+pysqlite:///{database_path}")
+    lost_at = datetime(2026, 6, 2, 10, 0, tzinfo=UTC)
+    report_at = datetime(2026, 6, 2, 10, 5, tzinfo=UTC)
+    app = create_app(
+        engine=engine,
+        admin_credentials=AdminCredentials(
+            username="admin",
+            password="secret",
+            secret_key="test-secret",
+        ),
+        clock=FixedClock(report_at),
+        send_cooldown_seconds=300,
+    )
+    with Session(engine) as session:
+        session.add(
+            PlatformAccountRecord(
+                id="account-1",
+                platform="xhs",
+                display_name="Account 1",
+                enabled=True,
+                daily_send_limit=10,
+                sends_today=0,
+            )
+        )
+        session.add(
+            AccountLiveSessionRecord(
+                id="session-1",
+                live_task_id="live-1",
+                platform="xhs",
+                room_url="https://example.com/live/1",
+                account_id="account-1",
+                node_id="node-a",
+                status="lost",
+                active_slot_key=None,
+                closed_at=lost_at,
+                failure_reason="shutdown_timeout",
+            )
+        )
+        session.add(
+            DispatchJobRecord(
+                id="job-1",
+                candidate_question_id="candidate-1",
+                live_task_id="live-1",
+                account_live_session_id="session-1",
+                account_id="account-1",
+                final_text="Is this suitable for oily skin?",
+                status="running",
+                created_at=datetime(2026, 6, 1, 12, 0, tzinfo=UTC),
+            )
+        )
+        session.commit()
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/live/send-results",
+            json={
+                "dispatch_job_id": "job-1",
+                "session_id": "session-1",
+                "account_id": "account-1",
+                "status": "success",
+                "failure_reason": None,
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ignored"}
+    with Session(engine) as session:
+        job = session.get(DispatchJobRecord, "job-1")
+        session_record = session.get(AccountLiveSessionRecord, "session-1")
+        account = session.get(PlatformAccountRecord, "account-1")
+        attempts = session.query(SendAttemptRecord).all()
+        assert job is not None
+        assert job.status == "running"
+        assert job.finished_at is None
+        assert session_record is not None
+        assert session_record.status == "lost"
+        assert session_record.active_slot_key is None
+        assert session_record.closed_at == lost_at.replace(tzinfo=None)
+        assert account is not None
+        assert account.sends_today == 0
+        assert account.cooldown_until is None
+        assert attempts == []
+    engine.dispose()
+
+
 def test_send_result_api_does_not_increment_send_count_on_failure(
     tmp_path: Path,
 ) -> None:

@@ -145,6 +145,8 @@ def report_send_result(
                 status_code=409,
                 detail="send result does not match dispatch job",
             )
+        if session_record.status in TERMINAL_SESSION_STATUS_VALUES:
+            return {"status": "ignored"}
         if dispatch_job.status in {"success", "failed"}:
             return {"status": "ignored"}
 
