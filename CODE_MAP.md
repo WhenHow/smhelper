@@ -66,6 +66,7 @@
 |       |   |       |-- candidate_dispatcher.py
 |       |   |       |-- candidate_reviewer.py
 |       |   |       |-- live.py
+|       |   |       |-- live_task_shutdown_coordinator.py
 |       |   |       |-- session.py
 |       |   |       `-- workers.py
 |       |   `-- task_queue/
@@ -173,6 +174,7 @@
     |   |   |-- test_account_entry_planner.py
     |   |   |-- test_candidate_dispatcher.py
     |   |   |-- test_candidate_reviewer.py
+    |   |   |-- test_live_task_shutdown_coordinator.py
     |   |   |-- test_sqlalchemy_records.py
     |   |   `-- test_sqlalchemy_session.py
     |   `-- task_queue/
