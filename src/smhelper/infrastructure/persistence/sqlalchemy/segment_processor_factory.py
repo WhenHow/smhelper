@@ -40,6 +40,8 @@ def build_sqlalchemy_segment_processor(
     )
     return SqlAlchemySegmentProcessor(
         session_factory=session_factory,
+        ids=ids,
+        clock=clock,
         processor=ProcessSegmentUseCase(
             media_artifacts=resolved_media_artifacts,
             speech_to_text=speech_to_text,

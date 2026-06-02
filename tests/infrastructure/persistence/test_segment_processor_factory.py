@@ -80,6 +80,8 @@ def test_build_sqlalchemy_segment_processor_wires_default_ffmpeg_artifacts() -> 
     )
 
     assert isinstance(processor, SqlAlchemySegmentProcessor)
+    assert processor.ids is ids
+    assert processor.clock is clock
     assert isinstance(processor.processor, ProcessSegmentUseCase)
     assert processor.processor.speech_to_text is speech_to_text
     assert processor.processor.question_generator is question_generator
