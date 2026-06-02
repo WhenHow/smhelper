@@ -12,6 +12,7 @@ from smhelper.core.exceptions import ConfigurationError
 DEFAULT_DATABASE_URL = "mysql+pymysql://root:@127.0.0.1:3306/smhelper"
 DEFAULT_CELERY_BROKER_URL = "redis://:tbui-666@127.0.0.1:6379/0"
 DEFAULT_CELERY_RESULT_BACKEND_URL = "redis://:tbui-666@127.0.0.1:6379/1"
+DEFAULT_CENTER_API_URL = "http://127.0.0.1:8000"
 DEFAULT_SEND_COOLDOWN_SECONDS = 300
 
 
@@ -21,9 +22,11 @@ class RuntimeSettings:
 
     state_path: Path
     browser_profiles_dir: Path
+    worker_storage_state_dir: Path
     database_url: str
     celery_broker_url: str
     celery_result_backend_url: str
+    center_api_url: str
     send_cooldown_seconds: int
     default_platform: str = "xhs"
 
@@ -57,6 +60,11 @@ class RuntimeSettings:
             default=DEFAULT_CELERY_RESULT_BACKEND_URL,
             name="celery result backend url",
         )
+        center_api_url = _required_setting(
+            source.get("SMHELPER_CENTER_API_URL"),
+            default=DEFAULT_CENTER_API_URL,
+            name="center api url",
+        )
         send_cooldown_seconds = _non_negative_int_setting(
             source.get("SMHELPER_SEND_COOLDOWN_SECONDS"),
             default=DEFAULT_SEND_COOLDOWN_SECONDS,
@@ -76,12 +84,20 @@ class RuntimeSettings:
             if raw_profiles_dir
             else (cwd or Path.cwd()) / ".smhelper" / "browser-profiles"
         )
+        raw_worker_storage_state_dir = source.get("SMHELPER_WORKER_STORAGE_STATE_DIR")
+        worker_storage_state_dir = (
+            Path(raw_worker_storage_state_dir)
+            if raw_worker_storage_state_dir
+            else (cwd or Path.cwd()) / ".smhelper" / "worker-storage-states"
+        )
         return cls(
             state_path=state_path,
             browser_profiles_dir=browser_profiles_dir,
+            worker_storage_state_dir=worker_storage_state_dir,
             database_url=database_url,
             celery_broker_url=celery_broker_url,
             celery_result_backend_url=celery_result_backend_url,
+            center_api_url=center_api_url,
             send_cooldown_seconds=send_cooldown_seconds,
             default_platform=platform,
         )

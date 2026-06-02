@@ -79,6 +79,7 @@
 |       |           |-- center_api_client.py
 |       |           |-- node_handler.py
 |       |           |-- node_tasks.py
+|       |           |-- node_worker_runtime.py
 |       |           |-- publisher.py
 |       |           `-- tasks.py
 |       |-- live/
@@ -186,7 +187,8 @@
     |       |-- test_celery_publisher.py
     |       |-- test_center_api_client.py
     |       |-- test_node_browser_task_handler.py
-    |       `-- test_node_task_registration.py
+    |       |-- test_node_task_registration.py
+    |       `-- test_node_worker_runtime.py
     |-- live/
     |   |-- test_account_live_session_policy.py
     |   |-- test_approve_candidate_question.py
