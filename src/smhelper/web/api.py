@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Protocol, cast
 from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Request
@@ -20,8 +21,19 @@ from smhelper.infrastructure.persistence.sqlalchemy.live import (
     DispatchJobRecord,
     SendAttemptRecord,
 )
+from smhelper.live.domain.account_live_session import RESTARTABLE_SESSION_STATUSES
 
 router = APIRouter(prefix="/api")
+RESTARTABLE_SESSION_STATUS_VALUES = {
+    status.value for status in RESTARTABLE_SESSION_STATUSES
+}
+
+
+class AccountSessionRestarter(Protocol):
+    """Center-side service that can rebuild an abnormal account session."""
+
+    def restart_session(self, *, session_id: str) -> list[str]:
+        """Try to rebuild a terminal abnormal session."""
 
 
 class SessionStatusReport(BaseModel):
@@ -89,6 +101,11 @@ def report_session_status(
             session_record.closed_at = now
         db_session.commit()
 
+    _restart_session_if_needed(
+        request=request,
+        session_id=session_id,
+        status=report.status,
+    )
     return {"status": "ok"}
 
 
@@ -148,3 +165,20 @@ def _now(request: Request) -> datetime:
     if clock is not None:
         return clock.now()
     return datetime.now(tz=UTC)
+
+
+def _restart_session_if_needed(
+    *,
+    request: Request,
+    session_id: str,
+    status: str,
+) -> None:
+    if status not in RESTARTABLE_SESSION_STATUS_VALUES:
+        return
+    restarter = cast(
+        AccountSessionRestarter | None,
+        getattr(request.app.state, "account_session_restarter", None),
+    )
+    if restarter is None:
+        return
+    restarter.restart_session(session_id=session_id)

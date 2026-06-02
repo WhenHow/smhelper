@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from smhelper.core.clock import FixedClock
+from smhelper.core.ids import SequenceIdGenerator
 from smhelper.infrastructure.persistence.sqlalchemy.accounts import (
     AccountAuthStateRecord,
     PlatformAccountRecord,
@@ -14,13 +15,38 @@ from smhelper.infrastructure.persistence.sqlalchemy.accounts import (
 from smhelper.infrastructure.persistence.sqlalchemy.live import (
     AccountLiveSessionRecord,
     DispatchJobRecord,
+    LiveTaskRecord,
     SendAttemptRecord,
 )
 from smhelper.infrastructure.persistence.sqlalchemy.session import (
     create_engine_from_url,
 )
+from smhelper.infrastructure.persistence.sqlalchemy.workers import WorkerNodeRecord
+from smhelper.infrastructure.task_queue.celery.publisher import EnterLiveRoomPayload
 from smhelper.web.admin import AdminCredentials
 from smhelper.web.app import create_app
+
+
+class FakeBrowserTaskPublisher:
+    def __init__(self) -> None:
+        self.entered: list[tuple[str, EnterLiveRoomPayload, int]] = []
+
+    def enter_live_room(
+        self,
+        *,
+        queue_name: str,
+        payload: EnterLiveRoomPayload,
+        countdown_seconds: int,
+    ) -> None:
+        self.entered.append((queue_name, payload, countdown_seconds))
+
+    def send_comment(
+        self,
+        *,
+        queue_name: str,
+        payload: object,
+    ) -> None:
+        raise AssertionError(f"unexpected send_comment call on {queue_name}: {payload}")
 
 
 def test_storage_state_api_serves_valid_account_storage_state(tmp_path: Path) -> None:
@@ -124,6 +150,93 @@ def test_session_status_api_updates_worker_reported_session_state(
         assert session_record is not None
         assert session_record.status == "waiting"
         assert session_record.active_slot_key == "live-1:account-1"
+    engine.dispose()
+
+
+def test_session_status_api_restarts_failed_session_when_live_task_is_running(
+    tmp_path: Path,
+) -> None:
+    database_path = tmp_path / "smhelper.db"
+    engine = create_engine_from_url(f"sqlite+pysqlite:///{database_path}")
+    now = datetime(2026, 6, 2, 10, 0, tzinfo=UTC)
+    publisher = FakeBrowserTaskPublisher()
+    app = create_app(
+        engine=engine,
+        admin_credentials=AdminCredentials(
+            username="admin",
+            password="secret",
+            secret_key="test-secret",
+        ),
+        browser_task_publisher=publisher,
+        clock=FixedClock(now),
+        ids=SequenceIdGenerator(["session-restart"]),
+    )
+    with Session(engine) as session:
+        session.add(
+            LiveTaskRecord(
+                id="live-1",
+                platform="xhs",
+                room_url="https://example.com/live/1",
+                status="running",
+                segment_time_seconds=60,
+                created_at=now,
+                started_at=now,
+            )
+        )
+        session.add(
+            WorkerNodeRecord(
+                id="node-a",
+                queue_name="node.node-a.browser",
+                supported_platforms=["xhs"],
+                max_browser_sessions=10,
+                active_browser_sessions=1,
+                online=True,
+            )
+        )
+        session.add(
+            AccountLiveSessionRecord(
+                id="session-1",
+                live_task_id="live-1",
+                platform="xhs",
+                room_url="https://example.com/live/1",
+                account_id="account-1",
+                node_id="node-a",
+                status="starting",
+                active_slot_key="live-1:account-1",
+            )
+        )
+        session.commit()
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/live/sessions/session-1/status",
+            json={"status": "failed", "failure_reason": "browser_crashed"},
+        )
+
+    assert response.status_code == 200
+    assert len(publisher.entered) == 1
+    queue_name, payload, countdown_seconds = publisher.entered[0]
+    assert queue_name == "node.node-a.browser"
+    assert payload.account_id == "account-1"
+    assert payload.live_task_id == "live-1"
+    assert payload.room_url == "https://example.com/live/1"
+    assert payload.platform == "xhs"
+    assert countdown_seconds == 0
+    assert payload.session_id == "session-restart"
+    with Session(engine) as session:
+        failed_session = session.get(AccountLiveSessionRecord, "session-1")
+        restarted_session = session.get(AccountLiveSessionRecord, payload.session_id)
+        assert failed_session is not None
+        assert failed_session.status == "failed"
+        assert failed_session.failure_reason == "browser_crashed"
+        assert failed_session.active_slot_key is None
+        assert failed_session.closed_at == now.replace(tzinfo=None)
+        assert restarted_session is not None
+        assert restarted_session.status == "planned"
+        assert restarted_session.account_id == "account-1"
+        assert restarted_session.node_id == "node-a"
+        assert restarted_session.restart_count == 1
+        assert restarted_session.active_slot_key == "live-1:account-1"
     engine.dispose()
 
 
