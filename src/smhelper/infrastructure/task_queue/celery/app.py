@@ -23,7 +23,14 @@ class CeleryApplication(Protocol):
 
     conf: CeleryConfig
 
-    def send_task(self, name: str, *, kwargs: dict[str, str], queue: str) -> object:
+    def send_task(
+        self,
+        name: str,
+        *,
+        kwargs: dict[str, str],
+        queue: str,
+        countdown: int | None = None,
+    ) -> object:
         """Send a task to a named queue."""
 
 
