@@ -8,7 +8,10 @@ from typing import Protocol
 from smhelper.infrastructure.task_queue.celery.node_tasks import (
     CeleryTaskRegistry,
 )
-from smhelper.infrastructure.task_queue.celery.tasks import PROCESS_SEGMENT_TASK
+from smhelper.infrastructure.task_queue.celery.tasks import (
+    OBSERVE_LIVE_TASK_TASK,
+    PROCESS_SEGMENT_TASK,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -24,11 +27,25 @@ class ProcessSegmentPayload:
         return asdict(self)
 
 
+@dataclass(frozen=True, slots=True)
+class ObserveLiveTaskPayload:
+    """Payload for observing one configured live task."""
+
+    live_task_id: str
+
+    def to_kwargs(self) -> dict[str, str]:
+        """Serialize the payload for Celery JSON transport."""
+        return asdict(self)
+
+
 class CenterTaskHandler(Protocol):
     """Handler surface consumed by registered center Celery tasks."""
 
     def process_segment(self, payload: ProcessSegmentPayload) -> None:
         """Handle a completed-segment processing task."""
+
+    def observe_live_task(self, payload: ObserveLiveTaskPayload) -> None:
+        """Handle a live-task observation attempt."""
 
 
 def register_center_tasks(
@@ -52,3 +69,7 @@ def register_center_tasks(
                 task_context=task_context,
             )
         )
+
+    @app.task(name=OBSERVE_LIVE_TASK_TASK)
+    def observe_live_task(*, live_task_id: str) -> None:
+        handler.observe_live_task(ObserveLiveTaskPayload(live_task_id=live_task_id))

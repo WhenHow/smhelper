@@ -12,6 +12,7 @@ from smhelper.core.exceptions import ConfigurationError
 DEFAULT_DATABASE_URL = "mysql+pymysql://root:@127.0.0.1:3306/smhelper"
 DEFAULT_CELERY_BROKER_URL = "redis://:tbui-666@127.0.0.1:6379/0"
 DEFAULT_CELERY_RESULT_BACKEND_URL = "redis://:tbui-666@127.0.0.1:6379/1"
+DEFAULT_CENTER_QUEUE_NAME = "center.live"
 DEFAULT_CENTER_API_URL = "http://127.0.0.1:8000"
 DEFAULT_SEND_COOLDOWN_SECONDS = 300
 DEFAULT_FFMPEG_PATH = "ffmpeg"
@@ -24,9 +25,11 @@ class RuntimeSettings:
     state_path: Path
     browser_profiles_dir: Path
     worker_storage_state_dir: Path
+    media_root: Path
     database_url: str
     celery_broker_url: str
     celery_result_backend_url: str
+    center_queue_name: str
     center_api_url: str
     send_cooldown_seconds: int
     ffmpeg_path: str
@@ -65,6 +68,11 @@ class RuntimeSettings:
             source.get("SMHELPER_CELERY_RESULT_BACKEND_URL"),
             default=DEFAULT_CELERY_RESULT_BACKEND_URL,
             name="celery result backend url",
+        )
+        center_queue_name = _required_setting(
+            source.get("SMHELPER_CENTER_QUEUE_NAME"),
+            default=DEFAULT_CENTER_QUEUE_NAME,
+            name="center queue name",
         )
         center_api_url = _required_setting(
             source.get("SMHELPER_CENTER_API_URL"),
@@ -109,13 +117,21 @@ class RuntimeSettings:
             if raw_worker_storage_state_dir
             else (cwd or Path.cwd()) / ".smhelper" / "worker-storage-states"
         )
+        raw_media_root = source.get("SMHELPER_MEDIA_ROOT")
+        media_root = (
+            Path(raw_media_root)
+            if raw_media_root
+            else (cwd or Path.cwd()) / ".smhelper" / "media"
+        )
         return cls(
             state_path=state_path,
             browser_profiles_dir=browser_profiles_dir,
             worker_storage_state_dir=worker_storage_state_dir,
+            media_root=media_root,
             database_url=database_url,
             celery_broker_url=celery_broker_url,
             celery_result_backend_url=celery_result_backend_url,
+            center_queue_name=center_queue_name,
             center_api_url=center_api_url,
             send_cooldown_seconds=send_cooldown_seconds,
             ffmpeg_path=ffmpeg_path,

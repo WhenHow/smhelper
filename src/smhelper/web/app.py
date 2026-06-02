@@ -31,6 +31,12 @@ from smhelper.infrastructure.persistence.sqlalchemy.session import (
     create_session_factory,
 )
 from smhelper.infrastructure.task_queue.celery.app import create_celery_app
+from smhelper.infrastructure.task_queue.celery.center_publisher import (
+    CenterTaskPublisher as CeleryCenterTaskPublisher,
+)
+from smhelper.infrastructure.task_queue.celery.center_tasks import (
+    ObserveLiveTaskPayload,
+)
 from smhelper.infrastructure.task_queue.celery.publisher import (
     BrowserTaskPublisher as CeleryBrowserTaskPublisher,
 )
@@ -47,12 +53,26 @@ class BrowserTaskPublisherProtocol(
     """Publisher surface needed by center-side browser task orchestration."""
 
 
+class CenterTaskPublisherProtocol(Protocol):
+    """Publisher surface needed by SQLAdmin live-task orchestration."""
+
+    def observe_live_task(
+        self,
+        *,
+        queue_name: str,
+        payload: ObserveLiveTaskPayload,
+    ) -> None:
+        """Publish one center-side live-task observation."""
+
+
 def create_app(
     *,
     database_url: str | None = None,
     engine: Engine | None = None,
     admin_credentials: AdminCredentials | None = None,
     browser_task_publisher: BrowserTaskPublisherProtocol | None = None,
+    center_task_publisher: CenterTaskPublisherProtocol | None = None,
+    center_queue_name: str | None = None,
     ids: IdGenerator | None = None,
     clock: Clock | None = None,
     send_cooldown_seconds: int | None = None,
@@ -71,6 +91,9 @@ def create_app(
     resolved_ids = ids or UuidGenerator()
     resolved_browser_task_publisher = browser_task_publisher or (
         _default_browser_task_publisher(settings)
+    )
+    resolved_center_task_publisher = center_task_publisher or (
+        _default_center_task_publisher(settings)
     )
     app.state.clock = resolved_clock
     app.state.send_cooldown_seconds = (
@@ -103,6 +126,12 @@ def create_app(
         credentials=admin_credentials or AdminCredentials.from_env(),
         candidate_dispatcher=app.state.candidate_dispatcher,
         candidate_reviewer=app.state.candidate_reviewer,
+        live_task_observer_publisher=resolved_center_task_publisher,
+        center_queue_name=(
+            settings.center_queue_name
+            if center_queue_name is None
+            else center_queue_name
+        ),
     )
     app.state.engine = app_engine
     return app
@@ -117,3 +146,14 @@ def _default_browser_task_publisher(
         result_backend_url=settings.celery_result_backend_url,
     )
     return CeleryBrowserTaskPublisher(celery_app=celery_app)
+
+
+def _default_center_task_publisher(
+    settings: RuntimeSettings,
+) -> CeleryCenterTaskPublisher:
+    """Create the default Celery center-task publisher."""
+    celery_app = create_celery_app(
+        broker_url=settings.celery_broker_url,
+        result_backend_url=settings.celery_result_backend_url,
+    )
+    return CeleryCenterTaskPublisher(celery_app=celery_app)

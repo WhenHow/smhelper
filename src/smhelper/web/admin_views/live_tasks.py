@@ -2,16 +2,35 @@
 
 from __future__ import annotations
 
-from typing import ClassVar
+from typing import ClassVar, Protocol
 
-from sqladmin import ModelView
+from sqladmin import ModelView, action
+from starlette.requests import Request
+from starlette.responses import RedirectResponse
 
 from smhelper.infrastructure.persistence.sqlalchemy.live import LiveTaskRecord
+from smhelper.infrastructure.task_queue.celery.center_tasks import (
+    ObserveLiveTaskPayload,
+)
+
+
+class LiveTaskObserverPublisher(Protocol):
+    """Publisher used by the SQLAdmin live-task observe action."""
+
+    def observe_live_task(
+        self,
+        *,
+        queue_name: str,
+        payload: ObserveLiveTaskPayload,
+    ) -> None:
+        """Publish one live-task observation task."""
 
 
 class LiveTaskAdmin(ModelView, model=LiveTaskRecord):
     """View live task runtime state."""
 
+    observer_publisher: ClassVar[LiveTaskObserverPublisher | None] = None
+    center_queue_name: ClassVar[str] = "center.live"
     name_plural = "Live Tasks"
     column_list: ClassVar[list[str]] = [
         "id",
@@ -26,3 +45,27 @@ class LiveTaskAdmin(ModelView, model=LiveTaskRecord):
         "failure_reason",
     ]
     column_searchable_list: ClassVar[list[str]] = ["id", "room_url"]
+
+    @action(
+        name="observe",
+        label="Observe",
+        confirmation_message="Observe selected live tasks?",
+    )
+    async def observe_live_tasks(self, request: Request) -> RedirectResponse:
+        """Publish observation tasks for selected LiveTask rows."""
+        raw_pks = request.query_params.get("pks", "")
+        live_task_ids = [
+            live_task_id for live_task_id in raw_pks.split(",") if live_task_id
+        ]
+        if live_task_ids:
+            if self.observer_publisher is None:
+                raise RuntimeError("live task observer publisher is not configured")
+            for live_task_id in live_task_ids:
+                self.observer_publisher.observe_live_task(
+                    queue_name=self.center_queue_name,
+                    payload=ObserveLiveTaskPayload(live_task_id=live_task_id),
+                )
+        return RedirectResponse(
+            request.headers.get("referer", "/admin/livetask/list"),
+            status_code=302,
+        )

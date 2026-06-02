@@ -6,9 +6,13 @@ from smhelper.infrastructure.task_queue.celery.center_publisher import (
     CenterTaskPublisher,
 )
 from smhelper.infrastructure.task_queue.celery.center_tasks import (
+    ObserveLiveTaskPayload,
     ProcessSegmentPayload,
 )
-from smhelper.infrastructure.task_queue.celery.tasks import PROCESS_SEGMENT_TASK
+from smhelper.infrastructure.task_queue.celery.tasks import (
+    OBSERVE_LIVE_TASK_TASK,
+    PROCESS_SEGMENT_TASK,
+)
 
 
 @dataclass
@@ -49,6 +53,24 @@ def test_center_task_publisher_sends_process_segment_to_center_queue() -> None:
                 "product_context": "Face cream for oily skin.",
                 "task_context": "Ask product-related questions.",
             },
+            "center.live",
+            None,
+        )
+    ]
+
+
+def test_center_task_publisher_sends_observe_live_task_to_center_queue() -> None:
+    celery_app = FakeCeleryTaskSender()
+
+    CenterTaskPublisher(celery_app=celery_app).observe_live_task(
+        queue_name="center.live",
+        payload=ObserveLiveTaskPayload(live_task_id="live-1"),
+    )
+
+    assert celery_app.sent == [
+        (
+            OBSERVE_LIVE_TASK_TASK,
+            {"live_task_id": "live-1"},
             "center.live",
             None,
         )

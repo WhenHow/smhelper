@@ -11,7 +11,10 @@ from smhelper.infrastructure.task_queue.celery.center_worker_runtime import (
     build_center_worker_runtime,
 )
 from smhelper.infrastructure.task_queue.celery.node_tasks import CeleryTaskRegistry
-from smhelper.infrastructure.task_queue.celery.tasks import PROCESS_SEGMENT_TASK
+from smhelper.infrastructure.task_queue.celery.tasks import (
+    OBSERVE_LIVE_TASK_TASK,
+    PROCESS_SEGMENT_TASK,
+)
 
 
 @dataclass
@@ -41,11 +44,17 @@ class FakeSegmentProcessor:
         return None
 
 
+class FakeLiveTaskObserverRunner:
+    def run_once(self, *, live_task_id: str) -> object | None:
+        return None
+
+
 def test_center_celery_worker_module_exposes_registered_celery_app(
     monkeypatch,
 ) -> None:
     fake_runtime = build_center_worker_runtime(
         segment_processor=FakeSegmentProcessor(),
+        live_task_observer_runner=FakeLiveTaskObserverRunner(),
         celery_app=FakeCeleryApp(),
     )
 
@@ -64,3 +73,4 @@ def test_center_celery_worker_module_exposes_registered_celery_app(
     assert module.runtime is fake_runtime
     assert module.celery_app is fake_runtime.celery_app
     assert PROCESS_SEGMENT_TASK in module.celery_app.tasks
+    assert OBSERVE_LIVE_TASK_TASK in module.celery_app.tasks

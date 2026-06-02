@@ -23,7 +23,7 @@ from smhelper.web.admin_views.candidates import (
     CandidateReviewer,
 )
 from smhelper.web.admin_views.dispatch_jobs import DispatchJobAdmin, SendAttemptAdmin
-from smhelper.web.admin_views.live_tasks import LiveTaskAdmin
+from smhelper.web.admin_views.live_tasks import LiveTaskAdmin, LiveTaskObserverPublisher
 from smhelper.web.admin_views.sessions import AccountLiveSessionAdmin
 from smhelper.web.admin_views.workers import WorkerNodeAdmin
 
@@ -83,10 +83,14 @@ def configure_admin(
     credentials: AdminCredentials,
     candidate_dispatcher: CandidateDispatcher | None = None,
     candidate_reviewer: CandidateReviewer | None = None,
+    live_task_observer_publisher: LiveTaskObserverPublisher | None = None,
+    center_queue_name: str = "center.live",
 ) -> Admin:
     """Attach SQLAdmin to the FastAPI app and register first-phase views."""
     CandidateQuestionAdmin.candidate_dispatcher = candidate_dispatcher
     CandidateQuestionAdmin.candidate_reviewer = candidate_reviewer
+    LiveTaskAdmin.observer_publisher = live_task_observer_publisher
+    LiveTaskAdmin.center_queue_name = center_queue_name
     admin = Admin(
         app=app,
         engine=engine,

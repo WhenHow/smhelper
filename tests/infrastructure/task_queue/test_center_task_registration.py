@@ -4,10 +4,14 @@ from dataclasses import dataclass, field
 from typing import Callable
 
 from smhelper.infrastructure.task_queue.celery.center_tasks import (
+    ObserveLiveTaskPayload,
     ProcessSegmentPayload,
     register_center_tasks,
 )
-from smhelper.infrastructure.task_queue.celery.tasks import PROCESS_SEGMENT_TASK
+from smhelper.infrastructure.task_queue.celery.tasks import (
+    OBSERVE_LIVE_TASK_TASK,
+    PROCESS_SEGMENT_TASK,
+)
 
 
 @dataclass
@@ -28,10 +32,14 @@ class FakeCeleryApp:
 
 @dataclass
 class FakeCenterTaskHandler:
-    payloads: list[ProcessSegmentPayload] = field(default_factory=list)
+    segment_payloads: list[ProcessSegmentPayload] = field(default_factory=list)
+    observation_payloads: list[ObserveLiveTaskPayload] = field(default_factory=list)
 
     def process_segment(self, payload: ProcessSegmentPayload) -> None:
-        self.payloads.append(payload)
+        self.segment_payloads.append(payload)
+
+    def observe_live_task(self, payload: ObserveLiveTaskPayload) -> None:
+        self.observation_payloads.append(payload)
 
 
 def test_register_center_tasks_delegates_process_segment_payload() -> None:
@@ -45,11 +53,23 @@ def test_register_center_tasks_delegates_process_segment_payload() -> None:
         task_context="Ask product-related questions.",
     )
 
-    assert set(app.tasks) == {PROCESS_SEGMENT_TASK}
-    assert handler.payloads == [
+    assert set(app.tasks) == {PROCESS_SEGMENT_TASK, OBSERVE_LIVE_TASK_TASK}
+    assert handler.segment_payloads == [
         ProcessSegmentPayload(
             segment_id="segment-1",
             product_context="Face cream for oily skin.",
             task_context="Ask product-related questions.",
         )
+    ]
+
+
+def test_register_center_tasks_delegates_observe_live_task_payload() -> None:
+    app = FakeCeleryApp()
+    handler = FakeCenterTaskHandler()
+
+    register_center_tasks(app=app, handler=handler)
+    app.tasks[OBSERVE_LIVE_TASK_TASK](live_task_id="live-1")
+
+    assert handler.observation_payloads == [
+        ObserveLiveTaskPayload(live_task_id="live-1")
     ]

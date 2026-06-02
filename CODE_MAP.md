@@ -208,6 +208,7 @@
     |   `-- task_queue/
     |       |-- test_celery_publisher.py
     |       |-- test_center_api_client.py
+    |       |-- test_center_handler.py
     |       |-- test_center_publisher.py
     |       |-- test_center_runtime.py
     |       |-- test_center_task_registration.py
@@ -240,6 +241,7 @@
     |-- web/
     |   |-- test_account_storage_state_api.py
     |   |-- test_admin_app.py
-    |   `-- test_candidate_approve_action.py
+    |   |-- test_candidate_approve_action.py
+    |   `-- test_live_task_observe_action.py
     `-- workers/
         `-- test_rendezvous_hashing.py

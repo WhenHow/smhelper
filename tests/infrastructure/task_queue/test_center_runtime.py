@@ -21,6 +21,15 @@ from smhelper.infrastructure.media.ffmpeg.runner import CommandRunner
 from smhelper.infrastructure.persistence.sqlalchemy.segment_processor import (
     SqlAlchemySegmentProcessor,
 )
+from smhelper.infrastructure.persistence.sqlalchemy.live_task_observer import (
+    SqlAlchemyLiveTaskObserverRunner,
+)
+from smhelper.infrastructure.persistence.sqlalchemy.live_task_starter import (
+    SqlAlchemyLiveTaskStarter,
+)
+from smhelper.infrastructure.persistence.sqlalchemy.live_task_terminator import (
+    SqlAlchemyLiveTaskTerminator,
+)
 from smhelper.infrastructure.persistence.sqlalchemy.session import (
     create_engine_from_url,
 )
@@ -28,12 +37,18 @@ from smhelper.infrastructure.task_queue.celery import center_runtime
 from smhelper.infrastructure.task_queue.celery.center_runtime import (
     build_configured_center_worker_runtime,
 )
-from smhelper.infrastructure.task_queue.celery.tasks import PROCESS_SEGMENT_TASK
+from smhelper.infrastructure.task_queue.celery.tasks import (
+    OBSERVE_LIVE_TASK_TASK,
+    PROCESS_SEGMENT_TASK,
+)
 from smhelper.live.application.ports.speech_to_text import (
     SpeechToTextRequest,
     TranscriptionResult,
 )
 from smhelper.live.application.use_cases.process_segment import ProcessSegmentUseCase
+from smhelper.platforms.xhs.browser.cloakbrowser_observer import (
+    XhsCloakBrowserLiveStreamObserver,
+)
 
 
 @dataclass
@@ -60,6 +75,14 @@ class FakeCommandRunner(CommandRunner):
         self.commands.append(command)
 
 
+@dataclass
+class FakeProcessStarter:
+    commands: list[list[str]] = field(default_factory=list)
+
+    def start(self, command: list[str]) -> None:
+        self.commands.append(command)
+
+
 def test_build_configured_center_worker_runtime_wires_segment_processor(
     tmp_path: Path,
 ) -> None:
@@ -77,6 +100,7 @@ def test_build_configured_center_worker_runtime_wires_segment_processor(
     )
     celery_app = FakeCeleryApp()
     command_runner = FakeCommandRunner()
+    process_starter = FakeProcessStarter()
     engine = create_engine_from_url(settings.database_url)
 
     try:
@@ -85,10 +109,14 @@ def test_build_configured_center_worker_runtime_wires_segment_processor(
             celery_app=celery_app,
             engine=engine,
             command_runner=command_runner,
+            process_starter=process_starter,
         )
 
         assert runtime.celery_app is celery_app
-        assert set(celery_app.tasks) == {PROCESS_SEGMENT_TASK}
+        assert set(celery_app.tasks) == {
+            PROCESS_SEGMENT_TASK,
+            OBSERVE_LIVE_TASK_TASK,
+        }
         assert isinstance(runtime.handler.segment_processor, SqlAlchemySegmentProcessor)
         use_case = runtime.handler.segment_processor.processor
         assert isinstance(use_case, ProcessSegmentUseCase)
@@ -100,6 +128,14 @@ def test_build_configured_center_worker_runtime_wires_segment_processor(
         assert isinstance(use_case.media_artifacts, FFmpegMediaArtifactExtractor)
         assert use_case.media_artifacts.ffmpeg_path == "ffmpeg-custom"
         assert use_case.media_artifacts.command_runner is command_runner
+        observer_runner = runtime.handler.live_task_observer_runner
+        assert isinstance(observer_runner, SqlAlchemyLiveTaskObserverRunner)
+        assert isinstance(observer_runner.observer, XhsCloakBrowserLiveStreamObserver)
+        assert isinstance(observer_runner.starter, SqlAlchemyLiveTaskStarter)
+        assert observer_runner.starter.process_starter is process_starter
+        assert observer_runner.starter.media_root == settings.media_root
+        assert observer_runner.starter.ffmpeg_path == "ffmpeg-custom"
+        assert isinstance(observer_runner.terminator, SqlAlchemyLiveTaskTerminator)
     finally:
         engine.dispose()
 

@@ -9,6 +9,7 @@ from smhelper.core.config import RuntimeSettings
 from smhelper.infrastructure.task_queue.celery.app import create_celery_app
 from smhelper.infrastructure.task_queue.celery.center_handler import (
     CenterTaskHandler,
+    LiveTaskObserverRunner,
     SegmentProcessor,
 )
 from smhelper.infrastructure.task_queue.celery.center_tasks import (
@@ -28,6 +29,7 @@ class CenterWorkerRuntime:
 def build_center_worker_runtime(
     *,
     segment_processor: SegmentProcessor,
+    live_task_observer_runner: LiveTaskObserverRunner,
     settings: RuntimeSettings | None = None,
     celery_app: CeleryTaskRegistry | None = None,
 ) -> CenterWorkerRuntime:
@@ -40,6 +42,9 @@ def build_center_worker_runtime(
             result_backend_url=resolved_settings.celery_result_backend_url,
         ),
     )
-    handler = CenterTaskHandler(segment_processor=segment_processor)
+    handler = CenterTaskHandler(
+        segment_processor=segment_processor,
+        live_task_observer_runner=live_task_observer_runner,
+    )
     register_center_tasks(app=resolved_celery_app, handler=handler)
     return CenterWorkerRuntime(celery_app=resolved_celery_app, handler=handler)
