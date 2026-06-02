@@ -44,11 +44,17 @@ from smhelper.infrastructure.persistence.sqlalchemy.live_task_terminator import 
 from smhelper.infrastructure.persistence.sqlalchemy.segment_processor_factory import (
     build_sqlalchemy_segment_processor,
 )
+from smhelper.infrastructure.persistence.sqlalchemy.segment_task_scheduler import (
+    SqlAlchemySegmentTaskScheduler,
+)
 from smhelper.infrastructure.persistence.sqlalchemy.session import (
     create_engine_from_url,
     create_session_factory,
 )
 from smhelper.infrastructure.task_queue.celery.app import create_celery_app
+from smhelper.infrastructure.task_queue.celery.center_publisher import (
+    CenterTaskPublisher,
+)
 from smhelper.infrastructure.task_queue.celery.center_worker_runtime import (
     CenterWorkerRuntime,
     build_center_worker_runtime,
@@ -114,6 +120,9 @@ def build_configured_center_worker_runtime(
     browser_task_publisher = BrowserTaskPublisher(
         celery_app=cast(CeleryTaskSender, resolved_celery_app),
     )
+    center_task_publisher = CenterTaskPublisher(
+        celery_app=cast(CeleryTaskSender, resolved_celery_app),
+    )
     account_entry_planner = SqlAlchemyAccountEntryPlanner(
         session_factory=session_factory,
         clock=resolved_clock,
@@ -148,6 +157,14 @@ def build_configured_center_worker_runtime(
             session_factory=session_factory,
             clock=resolved_clock,
             shutdown_coordinator=shutdown_coordinator,
+        ),
+        segment_scheduler=SqlAlchemySegmentTaskScheduler(
+            session_factory=session_factory,
+            ids=resolved_ids,
+            clock=resolved_clock,
+            publisher=center_task_publisher,
+            media_root=resolved_settings.media_root,
+            queue_name=resolved_settings.center_queue_name,
         ),
     )
     return build_center_worker_runtime(

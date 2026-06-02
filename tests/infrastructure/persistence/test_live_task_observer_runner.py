@@ -90,6 +90,20 @@ class FakeShutdownCoordinator:
         return []
 
 
+@dataclass
+class FakeSegmentTaskScheduler:
+    calls: list[tuple[str, bool]] = field(default_factory=list)
+
+    def schedule_live_task_segments(
+        self,
+        *,
+        live_task_id: str,
+        include_last: bool = False,
+    ) -> list[str]:
+        self.calls.append((live_task_id, include_last))
+        return []
+
+
 def test_live_task_observer_runner_starts_live_task_when_stream_is_discovered(
     tmp_path: Path,
 ) -> None:
@@ -156,6 +170,77 @@ def test_live_task_observer_runner_starts_live_task_when_stream_is_discovered(
         assert live_task is not None
         assert live_task.status == "running"
         assert live_task.stream_url == "https://stream.example/live.flv"
+    engine.dispose()
+
+
+def test_live_task_observer_runner_schedules_segments_while_live_and_on_end(
+    tmp_path: Path,
+) -> None:
+    now = datetime(2026, 6, 2, 10, 0, tzinfo=UTC)
+    engine = create_engine_from_url("sqlite+pysqlite:///:memory:")
+    session_factory = create_session_factory(engine)
+    Base.metadata.create_all(engine)
+    process_starter = FakeProcessStarter()
+    entry_planner = FakeAccountEntryPlanner()
+    shutdown_coordinator = FakeShutdownCoordinator()
+    segment_scheduler = FakeSegmentTaskScheduler()
+    observer_session = FakeLiveStreamObservationSession(
+        observations=[
+            LiveStreamObservation(
+                status=LiveStreamObservationStatus.LIVE,
+                stream_url="https://stream.example/live.flv",
+            ),
+            LiveStreamObservation(
+                status=LiveStreamObservationStatus.LIVE,
+                stream_url="https://stream.example/live.flv",
+            ),
+            LiveStreamObservation(status=LiveStreamObservationStatus.NOT_LIVE),
+        ]
+    )
+    observer = FakeLiveStreamObservationSessionFactory(session=observer_session)
+    with Session(engine) as session:
+        session.add(
+            LiveTaskRecord(
+                id="live-1",
+                platform="xhs",
+                room_url="https://example.com/livestream/1",
+                status="pending",
+                segment_time_seconds=60,
+                created_at=now,
+            )
+        )
+        session.commit()
+
+    result = SqlAlchemyLiveTaskObserverRunner(
+        session_factory=session_factory,
+        observer=observer,
+        starter=SqlAlchemyLiveTaskStarter(
+            session_factory=session_factory,
+            clock=FixedClock(now),
+            process_starter=process_starter,
+            account_entry_planner=entry_planner,
+            media_root=tmp_path,
+            ffmpeg_path="ffmpeg-custom",
+        ),
+        terminator=SqlAlchemyLiveTaskTerminator(
+            session_factory=session_factory,
+            clock=FixedClock(now),
+            shutdown_coordinator=shutdown_coordinator,
+        ),
+        segment_scheduler=segment_scheduler,
+    ).run_until_finished(
+        live_task_id="live-1",
+        observation_interval_ms=250,
+        max_checks=3,
+    )
+
+    assert result is not None
+    assert result.status is LiveStreamObservationStatus.NOT_LIVE
+    assert segment_scheduler.calls == [
+        ("live-1", False),
+        ("live-1", False),
+        ("live-1", True),
+    ]
     engine.dispose()
 
 

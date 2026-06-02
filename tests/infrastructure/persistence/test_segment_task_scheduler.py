@@ -98,6 +98,59 @@ def test_segment_task_scheduler_persists_and_publishes_completed_segments(
     engine.dispose()
 
 
+def test_segment_task_scheduler_loads_live_task_context(
+    tmp_path: Path,
+) -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    session_factory = create_session_factory(engine)
+    now = datetime(2026, 6, 2, 10, 0, tzinfo=UTC)
+    first = tmp_path / "live-1" / "segment_00000.mp4"
+    second = tmp_path / "live-1" / "segment_00001.mp4"
+    first.parent.mkdir()
+    first.write_bytes(b"first")
+    second.write_bytes(b"second")
+    publisher = FakeProcessSegmentPublisher()
+    with Session(engine) as session:
+        session.add(
+            LiveTaskRecord(
+                id="live-1",
+                platform="xhs",
+                room_url="https://example.com/live/1",
+                status="running",
+                segment_time_seconds=60,
+                product_context="Product facts from admin.",
+                task_context="Ask concise questions.",
+                created_at=now,
+            )
+        )
+        session.commit()
+
+    scheduled_ids = SqlAlchemySegmentTaskScheduler(
+        session_factory=session_factory,
+        ids=SequenceIdGenerator(["segment-1"]),
+        clock=FixedClock(now),
+        publisher=publisher,
+    ).schedule_live_task_segments(
+        live_task_id="live-1",
+        media_root=tmp_path,
+        queue_name="center.live",
+    )
+
+    assert scheduled_ids == ["segment-1"]
+    assert publisher.published == [
+        (
+            "center.live",
+            ProcessSegmentPayload(
+                segment_id="segment-1",
+                product_context="Product facts from admin.",
+                task_context="Ask concise questions.",
+            ),
+        )
+    ]
+    engine.dispose()
+
+
 def test_segment_task_scheduler_does_not_publish_existing_segment_twice(
     tmp_path: Path,
 ) -> None:

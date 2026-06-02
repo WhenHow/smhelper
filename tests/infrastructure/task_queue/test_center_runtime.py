@@ -21,6 +21,9 @@ from smhelper.infrastructure.media.ffmpeg.runner import CommandRunner
 from smhelper.infrastructure.persistence.sqlalchemy.segment_processor import (
     SqlAlchemySegmentProcessor,
 )
+from smhelper.infrastructure.persistence.sqlalchemy.segment_task_scheduler import (
+    SqlAlchemySegmentTaskScheduler,
+)
 from smhelper.infrastructure.persistence.sqlalchemy.live_task_observer import (
     SqlAlchemyLiveTaskObserverRunner,
 )
@@ -136,6 +139,14 @@ def test_build_configured_center_worker_runtime_wires_segment_processor(
         assert observer_runner.starter.media_root == settings.media_root
         assert observer_runner.starter.ffmpeg_path == "ffmpeg-custom"
         assert isinstance(observer_runner.terminator, SqlAlchemyLiveTaskTerminator)
+        assert isinstance(
+            observer_runner.segment_scheduler,
+            SqlAlchemySegmentTaskScheduler,
+        )
+        assert observer_runner.segment_scheduler.media_root == settings.media_root
+        assert (
+            observer_runner.segment_scheduler.queue_name == settings.center_queue_name
+        )
     finally:
         engine.dispose()
 

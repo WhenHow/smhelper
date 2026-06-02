@@ -80,6 +80,8 @@ def test_sqlalchemy_records_can_be_persisted_together() -> None:
                 platform="xhs",
                 room_url="https://example.com/live/1",
                 status="running",
+                product_context="Product facts.",
+                task_context="Ask product questions.",
                 segment_time_seconds=60,
                 created_at=now,
             )
@@ -156,6 +158,10 @@ def test_sqlalchemy_records_can_be_persisted_together() -> None:
 
         assert account is not None
         assert account.display_name == "Account 1"
+        live_task = session.get(LiveTaskRecord, "live-1")
+        assert live_task is not None
+        assert live_task.product_context == "Product facts."
+        assert live_task.task_context == "Ask product questions."
         assert session_record is not None
         assert session_record.active_slot_key == "live-1:account-1"
     engine.dispose()

@@ -41,6 +41,40 @@ class SqlAlchemySegmentTaskScheduler:
     ids: IdGenerator
     clock: Clock
     publisher: ProcessSegmentTaskPublisher
+    media_root: Path | None = None
+    queue_name: str | None = None
+
+    def schedule_live_task_segments(
+        self,
+        *,
+        live_task_id: str,
+        include_last: bool = False,
+        media_root: Path | None = None,
+        queue_name: str | None = None,
+    ) -> list[str]:
+        """Schedule completed segments using context stored on the LiveTask."""
+        resolved_media_root = media_root or self.media_root
+        resolved_queue_name = queue_name or self.queue_name
+        if resolved_media_root is None:
+            raise ValueError("media_root must be configured")
+        if resolved_queue_name is None:
+            raise ValueError("queue_name must be configured")
+
+        with self.session_factory() as session:
+            live_task = session.get(LiveTaskRecord, live_task_id)
+            if live_task is None:
+                return []
+            product_context = live_task.product_context or ""
+            task_context = live_task.task_context or ""
+
+        return self.schedule_completed_segments(
+            live_task_id=live_task_id,
+            output_dir=resolved_media_root / live_task_id,
+            product_context=product_context,
+            task_context=task_context,
+            queue_name=resolved_queue_name,
+            include_last=include_last,
+        )
 
     def schedule_completed_segments(
         self,

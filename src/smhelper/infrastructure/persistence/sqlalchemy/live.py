@@ -22,6 +22,8 @@ class LiveTaskRecord(Base):
     status: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
     title: Mapped[str | None] = mapped_column(String(256))
     stream_url: Mapped[str | None] = mapped_column(Text)
+    product_context: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    task_context: Mapped[str] = mapped_column(Text, nullable=False, default="")
     segment_time_seconds: Mapped[int] = mapped_column(
         Integer, nullable=False, default=60
     )

@@ -38,6 +38,8 @@ class LiveTaskAdmin(ModelView, model=LiveTaskRecord):
         "room_url",
         "status",
         "stream_url",
+        "product_context",
+        "task_context",
         "segment_time_seconds",
         "created_at",
         "started_at",

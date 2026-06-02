@@ -43,6 +43,18 @@ class LiveTaskTerminator(Protocol):
         """End the live task and close active sessions."""
 
 
+class LiveTaskSegmentScheduler(Protocol):
+    """Schedules completed segment processing for a live task."""
+
+    def schedule_live_task_segments(
+        self,
+        *,
+        live_task_id: str,
+        include_last: bool = False,
+    ) -> list[str]:
+        """Schedule completed media segments for one live task."""
+
+
 @dataclass(frozen=True, slots=True)
 class LiveTaskObservationRunResult:
     """Result of one center-side live-task observation attempt."""
@@ -61,6 +73,7 @@ class SqlAlchemyLiveTaskObserverRunner:
     observer: LiveStreamObserver
     starter: LiveTaskStarter
     terminator: LiveTaskTerminator
+    segment_scheduler: LiveTaskSegmentScheduler | None = None
 
     def run_once(self, *, live_task_id: str) -> LiveTaskObservationRunResult | None:
         """Observe the task room once and start or update the task state."""
@@ -98,7 +111,16 @@ class SqlAlchemyLiveTaskObserverRunner:
                     observation=observation,
                 )
                 checks += 1
+                if observation.status is LiveStreamObservationStatus.LIVE:
+                    self._schedule_segments(
+                        live_task_id=live_task_id,
+                        include_last=False,
+                    )
                 if observation.status is LiveStreamObservationStatus.NOT_LIVE:
+                    self._schedule_segments(
+                        live_task_id=live_task_id,
+                        include_last=True,
+                    )
                     return last_result
                 if max_checks is not None and checks >= max_checks:
                     return last_result
@@ -168,6 +190,19 @@ class SqlAlchemyLiveTaskObserverRunner:
             status=observation.status,
             stream_url=observation.stream_url,
             start_result=start_result,
+        )
+
+    def _schedule_segments(
+        self,
+        *,
+        live_task_id: str,
+        include_last: bool,
+    ) -> None:
+        if self.segment_scheduler is None:
+            return
+        self.segment_scheduler.schedule_live_task_segments(
+            live_task_id=live_task_id,
+            include_last=include_last,
         )
 
     def _record_failure(self, *, live_task_id: str, failure_reason: str) -> None:
