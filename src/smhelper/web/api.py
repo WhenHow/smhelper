@@ -150,6 +150,8 @@ def report_send_result(
             return {"status": "ignored"}
         if dispatch_job.status != DispatchJobStatus.RUNNING.value:
             return {"status": "ignored"}
+        if session_record.status != AccountLiveSessionStatus.SENDING.value:
+            return {"status": "ignored"}
 
         normalized_status = report.status
         db_session.add(
