@@ -39,6 +39,32 @@ class FakeLiveStreamObserver:
 
 
 @dataclass
+class FakeLiveStreamObservationSession:
+    observations: list[LiveStreamObservation]
+    waited_timeouts: list[int] = field(default_factory=list)
+    closed: bool = False
+
+    def observe(self) -> LiveStreamObservation:
+        return self.observations.pop(0)
+
+    def wait(self, timeout_ms: int) -> None:
+        self.waited_timeouts.append(timeout_ms)
+
+    def close(self) -> None:
+        self.closed = True
+
+
+@dataclass
+class FakeLiveStreamObservationSessionFactory:
+    session: FakeLiveStreamObservationSession
+    opened_urls: list[str] = field(default_factory=list)
+
+    def open_session(self, *, room_url: str) -> FakeLiveStreamObservationSession:
+        self.opened_urls.append(room_url)
+        return self.session
+
+
+@dataclass
 class FakeProcessStarter:
     commands: list[list[str]] = field(default_factory=list)
 
@@ -130,6 +156,82 @@ def test_live_task_observer_runner_starts_live_task_when_stream_is_discovered(
         assert live_task is not None
         assert live_task.status == "running"
         assert live_task.stream_url == "https://stream.example/live.flv"
+    engine.dispose()
+
+
+def test_live_task_observer_runner_continues_until_room_ends(
+    tmp_path: Path,
+) -> None:
+    now = datetime(2026, 6, 2, 10, 0, tzinfo=UTC)
+    engine = create_engine_from_url("sqlite+pysqlite:///:memory:")
+    session_factory = create_session_factory(engine)
+    Base.metadata.create_all(engine)
+    process_starter = FakeProcessStarter()
+    entry_planner = FakeAccountEntryPlanner()
+    shutdown_coordinator = FakeShutdownCoordinator()
+    observer_session = FakeLiveStreamObservationSession(
+        observations=[
+            LiveStreamObservation(
+                status=LiveStreamObservationStatus.LIVE,
+                stream_url="https://stream.example/live.flv",
+            ),
+            LiveStreamObservation(
+                status=LiveStreamObservationStatus.LIVE,
+                stream_url="https://stream.example/live.flv",
+            ),
+            LiveStreamObservation(status=LiveStreamObservationStatus.NOT_LIVE),
+        ]
+    )
+    observer = FakeLiveStreamObservationSessionFactory(session=observer_session)
+    with Session(engine) as session:
+        session.add(
+            LiveTaskRecord(
+                id="live-1",
+                platform="xhs",
+                room_url="https://example.com/livestream/1",
+                status="pending",
+                segment_time_seconds=60,
+                created_at=now,
+            )
+        )
+        session.commit()
+
+    result = SqlAlchemyLiveTaskObserverRunner(
+        session_factory=session_factory,
+        observer=observer,
+        starter=SqlAlchemyLiveTaskStarter(
+            session_factory=session_factory,
+            clock=FixedClock(now),
+            process_starter=process_starter,
+            account_entry_planner=entry_planner,
+            media_root=tmp_path,
+            ffmpeg_path="ffmpeg-custom",
+        ),
+        terminator=SqlAlchemyLiveTaskTerminator(
+            session_factory=session_factory,
+            clock=FixedClock(now),
+            shutdown_coordinator=shutdown_coordinator,
+        ),
+    ).run_until_finished(
+        live_task_id="live-1",
+        observation_interval_ms=250,
+        max_checks=3,
+    )
+
+    assert result is not None
+    assert result.status is LiveStreamObservationStatus.NOT_LIVE
+    assert observer.opened_urls == ["https://example.com/livestream/1"]
+    assert observer_session.waited_timeouts == [250, 250]
+    assert observer_session.closed is True
+    assert len(process_starter.commands) == 1
+    assert entry_planner.dispatched_live_task_ids == ["live-1"]
+    assert shutdown_coordinator.closed_live_task_ids == ["live-1"]
+    with Session(engine) as session:
+        live_task = session.get(LiveTaskRecord, "live-1")
+        assert live_task is not None
+        assert live_task.status == "ended"
+        assert live_task.stream_url == "https://stream.example/live.flv"
+        assert live_task.failure_reason == "live_not_active"
     engine.dispose()
 
 

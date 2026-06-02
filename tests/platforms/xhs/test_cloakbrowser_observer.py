@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
+import pytest
+
 from smhelper.live.application.ports.live_stream_observer import (
     LiveStreamObservationStatus,
 )
@@ -27,9 +29,12 @@ class FakePage:
         self.request_urls_on_goto: list[str] = []
         self.evaluate_result: object = []
         self.waited_timeouts: list[float] = []
+        self.goto_error: Exception | None = None
         self._request_handlers: list[Callable[[FakeRequest], object]] = []
 
     def goto(self, url: str) -> None:
+        if self.goto_error is not None:
+            raise self.goto_error
         self.visited_urls.append(url)
         for request_url in self.request_urls_on_goto:
             request = FakeRequest(request_url)
@@ -165,6 +170,48 @@ def test_cloakbrowser_observer_returns_captured_stream_url() -> None:
             ["--window-size=1280,900", "--no-proxy-server"],
         )
     ]
+    assert context.closed is True
+
+
+def test_cloakbrowser_observer_session_keeps_context_open_until_closed() -> None:
+    page = FakePage()
+    page.request_urls_on_goto = ["https://stream.example/live.flv"]
+    page.locators[LIVE_FINISH_STATUS_SELECTOR] = FakeLocator(count=0)
+    page.locators[LIVE_PLAYER_SELECTOR] = FakeLocator()
+    page.locators[LIVE_VIDEO_SELECTOR] = FakeLocator()
+    context = FakeContext(page)
+
+    session = XhsCloakBrowserLiveStreamObserver(
+        launcher=FakeContextLauncher(context),
+    ).open_session(room_url="https://www.xiaohongshu.com/livestream/1")
+
+    assert context.closed is False
+    assert session.observe().status is LiveStreamObservationStatus.LIVE
+
+    page.locators[LIVE_FINISH_STATUS_SELECTOR] = FakeLocator(
+        text="\u76f4\u64ad\u5df2\u7ed3\u675f"
+    )
+    page.locators[LIVE_PLAYER_SELECTOR] = FakeLocator(count=0)
+    page.locators[LIVE_VIDEO_SELECTOR] = FakeLocator(count=0)
+
+    assert session.observe().status is LiveStreamObservationStatus.NOT_LIVE
+
+    session.close()
+
+    assert context.closed is True
+    assert page.visited_urls == ["https://www.xiaohongshu.com/livestream/1"]
+
+
+def test_cloakbrowser_observer_session_closes_context_when_navigation_fails() -> None:
+    page = FakePage()
+    page.goto_error = RuntimeError("navigation failed")
+    context = FakeContext(page)
+
+    with pytest.raises(RuntimeError, match="navigation failed"):
+        XhsCloakBrowserLiveStreamObserver(
+            launcher=FakeContextLauncher(context),
+        ).open_session(room_url="https://www.xiaohongshu.com/livestream/1")
+
     assert context.closed is True
 
 

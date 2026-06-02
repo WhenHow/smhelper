@@ -25,10 +25,10 @@ class SegmentProcessor(Protocol):
 
 
 class LiveTaskObserverRunner(Protocol):
-    """Persistence-backed runner for one live-task observation attempt."""
+    """Persistence-backed runner for a live-task observation session."""
 
-    def run_once(self, *, live_task_id: str) -> object | None:
-        """Observe one live task and advance its persisted state."""
+    def run_until_finished(self, *, live_task_id: str) -> object | None:
+        """Observe one live task until the live room ends."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,5 +47,7 @@ class CenterTaskHandler:
         )
 
     def observe_live_task(self, payload: ObserveLiveTaskPayload) -> None:
-        """Observe one live task and let the runner handle state transitions."""
-        self.live_task_observer_runner.run_once(live_task_id=payload.live_task_id)
+        """Observe one live task until the runner reaches a terminal state."""
+        self.live_task_observer_runner.run_until_finished(
+            live_task_id=payload.live_task_id
+        )

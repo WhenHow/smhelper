@@ -28,3 +28,23 @@ class LiveStreamObserver(Protocol):
 
     def observe(self, *, room_url: str) -> LiveStreamObservation:
         """Observe the live room once."""
+
+
+class LiveStreamObservationSession(Protocol):
+    """Long-lived observer page for one live room."""
+
+    def observe(self) -> LiveStreamObservation:
+        """Observe the already-open live room page once."""
+
+    def wait(self, timeout_ms: int) -> None:
+        """Wait before the next observation without closing the page."""
+
+    def close(self) -> None:
+        """Close the observer page and its browser context."""
+
+
+class LiveStreamObservationSessionFactory(Protocol):
+    """Creates long-lived observer sessions for live rooms."""
+
+    def open_session(self, *, room_url: str) -> LiveStreamObservationSession:
+        """Open one observer session for the live room."""

@@ -45,7 +45,7 @@ class FakeSegmentProcessor:
 
 
 class FakeLiveTaskObserverRunner:
-    def run_once(self, *, live_task_id: str) -> object | None:
+    def run_until_finished(self, *, live_task_id: str) -> object | None:
         return None
 
 

@@ -11,6 +11,7 @@ from typing import Protocol, cast
 from smhelper.live.application.ports.live_stream_observer import (
     LiveStreamObservation,
     LiveStreamObservationStatus,
+    LiveStreamObservationSession,
 )
 from smhelper.platforms.xhs.browser.cloakbrowser_live_room import (
     DEFAULT_HUMAN_CONFIG,
@@ -111,6 +112,28 @@ class ContextLauncher(Protocol):
 
 
 @dataclass(slots=True)
+class XhsCloakBrowserLiveStreamObservationSession:
+    """Long-lived anonymous XHS observer page."""
+
+    context: BrowserContext
+    page: BrowserPage
+    captured_stream_urls: list[str]
+
+    def observe(self) -> LiveStreamObservation:
+        """Observe the already-open live room page once."""
+        return _observe_page(self.page, self.captured_stream_urls)
+
+    def wait(self, timeout_ms: int) -> None:
+        """Wait before the next observation while keeping the page open."""
+        self.page.wait_for_timeout(timeout_ms)
+
+    def close(self) -> None:
+        """Close the underlying browser context."""
+        with suppress(Exception):
+            self.context.close()
+
+
+@dataclass(slots=True)
 class XhsCloakBrowserLiveStreamObserver:
     """Observe an XHS live room anonymously and return stream status."""
 
@@ -128,39 +151,53 @@ class XhsCloakBrowserLiveStreamObserver:
 
     def observe(self, *, room_url: str) -> LiveStreamObservation:
         """Open the live room once and observe status plus stream URL."""
-        context: BrowserContext | None = None
-        captured_stream_urls: list[str] = []
+        session: LiveStreamObservationSession | None = None
         live_without_stream: LiveStreamObservation | None = None
         try:
-            context = self._launcher(
-                headless=self.headless,
-                viewport={"width": self.window_width, "height": self.window_height},
-                humanize=True,
-                human_preset=self.human_preset,
-                human_config=self.human_config,
-                args=self._launch_args(),
-            )
-            page = context.pages[0] if context.pages else context.new_page()
-            _attach_stream_capture(page, captured_stream_urls)
-            page.goto(room_url)
-
+            session = self.open_session(room_url=room_url)
             for _ in range(self.observation_checks):
-                observation = _observe_page(page, captured_stream_urls)
+                observation = session.observe()
                 if observation.status is LiveStreamObservationStatus.NOT_LIVE:
                     return observation
                 if observation.status is LiveStreamObservationStatus.LIVE:
                     if observation.stream_url is not None:
                         return observation
                     live_without_stream = observation
-                page.wait_for_timeout(self.observation_wait_ms)
+                session.wait(self.observation_wait_ms)
 
             return live_without_stream or LiveStreamObservation(
                 status=LiveStreamObservationStatus.UNKNOWN
             )
         finally:
-            if context is not None:
-                with suppress(Exception):
-                    context.close()
+            if session is not None:
+                session.close()
+
+    def open_session(
+        self, *, room_url: str
+    ) -> XhsCloakBrowserLiveStreamObservationSession:
+        """Open an anonymous observer page and keep it available for polling."""
+        captured_stream_urls: list[str] = []
+        context = self._launcher(
+            headless=self.headless,
+            viewport={"width": self.window_width, "height": self.window_height},
+            humanize=True,
+            human_preset=self.human_preset,
+            human_config=self.human_config,
+            args=self._launch_args(),
+        )
+        page = context.pages[0] if context.pages else context.new_page()
+        try:
+            _attach_stream_capture(page, captured_stream_urls)
+            page.goto(room_url)
+            return XhsCloakBrowserLiveStreamObservationSession(
+                context=context,
+                page=page,
+                captured_stream_urls=captured_stream_urls,
+            )
+        except Exception:
+            with suppress(Exception):
+                context.close()
+            raise
 
     @property
     def _launcher(self) -> ContextLauncher:

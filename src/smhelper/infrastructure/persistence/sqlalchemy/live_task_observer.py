@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Protocol, cast
 
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -13,6 +13,7 @@ from smhelper.infrastructure.persistence.sqlalchemy.live_task_starter import (
 )
 from smhelper.live.application.ports.live_stream_observer import (
     LiveStreamObservation,
+    LiveStreamObservationSessionFactory,
     LiveStreamObservationStatus,
     LiveStreamObserver,
 )
@@ -63,13 +64,55 @@ class SqlAlchemyLiveTaskObserverRunner:
 
     def run_once(self, *, live_task_id: str) -> LiveTaskObservationRunResult | None:
         """Observe the task room once and start or update the task state."""
-        with self.session_factory() as session:
-            live_task = session.get(LiveTaskRecord, live_task_id)
-            if live_task is None:
-                return None
-            room_url = live_task.room_url
-
+        room_url = self._load_room_url(live_task_id=live_task_id)
+        if room_url is None:
+            return None
         observation = self.observer.observe(room_url=room_url)
+        return self._handle_observation(
+            live_task_id=live_task_id,
+            observation=observation,
+        )
+
+    def run_until_finished(
+        self,
+        *,
+        live_task_id: str,
+        observation_interval_ms: int = 5_000,
+        max_checks: int | None = None,
+    ) -> LiveTaskObservationRunResult | None:
+        """Keep one observer page open until the live task ends or checks stop."""
+        room_url = self._load_room_url(live_task_id=live_task_id)
+        if room_url is None:
+            return None
+
+        observation_session = cast(
+            LiveStreamObservationSessionFactory, self.observer
+        ).open_session(room_url=room_url)
+        checks = 0
+        last_result: LiveTaskObservationRunResult | None = None
+        try:
+            while max_checks is None or checks < max_checks:
+                observation = observation_session.observe()
+                last_result = self._handle_observation(
+                    live_task_id=live_task_id,
+                    observation=observation,
+                )
+                checks += 1
+                if observation.status is LiveStreamObservationStatus.NOT_LIVE:
+                    return last_result
+                if max_checks is not None and checks >= max_checks:
+                    return last_result
+                observation_session.wait(observation_interval_ms)
+            return last_result
+        finally:
+            observation_session.close()
+
+    def _handle_observation(
+        self,
+        *,
+        live_task_id: str,
+        observation: LiveStreamObservation,
+    ) -> LiveTaskObservationRunResult:
         if observation.status is LiveStreamObservationStatus.LIVE:
             return self._handle_live(
                 live_task_id=live_task_id,
@@ -91,6 +134,13 @@ class SqlAlchemyLiveTaskObserverRunner:
             stream_url=observation.stream_url,
             start_result=None,
         )
+
+    def _load_room_url(self, *, live_task_id: str) -> str | None:
+        with self.session_factory() as session:
+            live_task = session.get(LiveTaskRecord, live_task_id)
+            if live_task is None:
+                return None
+            return live_task.room_url
 
     def _handle_live(
         self,

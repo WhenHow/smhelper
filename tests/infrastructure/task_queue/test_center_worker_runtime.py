@@ -47,7 +47,7 @@ class FakeSegmentProcessor:
 class FakeLiveTaskObserverRunner:
     observed_live_task_ids: list[str] = field(default_factory=list)
 
-    def run_once(self, *, live_task_id: str) -> object | None:
+    def run_until_finished(self, *, live_task_id: str) -> object | None:
         self.observed_live_task_ids.append(live_task_id)
         return None
 
