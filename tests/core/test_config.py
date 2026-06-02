@@ -26,6 +26,9 @@ def test_runtime_settings_uses_env_state_path_and_default_platform(
             "SMHELPER_CELERY_RESULT_BACKEND_URL": "redis://:secret@redis:6379/3",
             "SMHELPER_CENTER_API_URL": "https://center.example",
             "SMHELPER_SEND_COOLDOWN_SECONDS": "300",
+            "SMHELPER_FFMPEG_PATH": "ffmpeg-custom",
+            "SMHELPER_LLM_MODEL": "vendor/main-model",
+            "SMHELPER_LLM_FALLBACK_MODELS": "vendor/fallback-a, vendor/fallback-b",
         }
     )
 
@@ -38,6 +41,12 @@ def test_runtime_settings_uses_env_state_path_and_default_platform(
     assert settings.celery_result_backend_url == "redis://:secret@redis:6379/3"
     assert settings.center_api_url == "https://center.example"
     assert settings.send_cooldown_seconds == 300
+    assert settings.ffmpeg_path == "ffmpeg-custom"
+    assert settings.llm_model == "vendor/main-model"
+    assert settings.llm_fallback_models == (
+        "vendor/fallback-a",
+        "vendor/fallback-b",
+    )
 
 
 def test_runtime_settings_uses_cwd_state_path_when_env_is_empty(
@@ -55,6 +64,9 @@ def test_runtime_settings_uses_cwd_state_path_when_env_is_empty(
     assert settings.celery_result_backend_url == "redis://:tbui-666@127.0.0.1:6379/1"
     assert settings.center_api_url == "http://127.0.0.1:8000"
     assert settings.send_cooldown_seconds == 300
+    assert settings.ffmpeg_path == "ffmpeg"
+    assert settings.llm_model is None
+    assert settings.llm_fallback_models == ()
 
 
 def test_runtime_settings_rejects_blank_platform(tmp_path: Path) -> None:
@@ -69,5 +81,13 @@ def test_runtime_settings_rejects_invalid_send_cooldown(tmp_path: Path) -> None:
     with pytest.raises(ConfigurationError, match="send cooldown"):
         RuntimeSettings.from_env(
             {"SMHELPER_SEND_COOLDOWN_SECONDS": "-1"},
+            cwd=tmp_path,
+        )
+
+
+def test_runtime_settings_rejects_blank_ffmpeg_path(tmp_path: Path) -> None:
+    with pytest.raises(ConfigurationError, match="ffmpeg path"):
+        RuntimeSettings.from_env(
+            {"SMHELPER_FFMPEG_PATH": " "},
             cwd=tmp_path,
         )
