@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+from smhelper.core.clock import FixedClock
 from smhelper.infrastructure.persistence.sqlalchemy.accounts import (
     AccountAuthStateRecord,
     PlatformAccountRecord,
@@ -131,6 +132,7 @@ def test_send_result_api_records_attempt_and_updates_dispatch_job(
 ) -> None:
     database_path = tmp_path / "smhelper.db"
     engine = create_engine_from_url(f"sqlite+pysqlite:///{database_path}")
+    now = datetime(2026, 6, 2, 10, 0, tzinfo=UTC)
     app = create_app(
         engine=engine,
         admin_credentials=AdminCredentials(
@@ -138,6 +140,8 @@ def test_send_result_api_records_attempt_and_updates_dispatch_job(
             password="secret",
             secret_key="test-secret",
         ),
+        clock=FixedClock(now),
+        send_cooldown_seconds=300,
     )
     with Session(engine) as session:
         session.add(
@@ -198,10 +202,18 @@ def test_send_result_api_records_attempt_and_updates_dispatch_job(
         assert job.status == "success"
         assert session_record is not None
         assert session_record.status == "waiting"
+        assert session_record.last_send_at == now.replace(tzinfo=None)
+        assert session_record.cooldown_until == (now + timedelta(seconds=300)).replace(
+            tzinfo=None
+        )
         assert account is not None
         assert account.sends_today == 1
+        assert account.cooldown_until == (now + timedelta(seconds=300)).replace(
+            tzinfo=None
+        )
         assert len(attempts) == 1
         assert attempts[0].success_detection == "operation_completed"
+        assert attempts[0].attempted_at == now.replace(tzinfo=None)
     engine.dispose()
 
 
@@ -210,6 +222,7 @@ def test_send_result_api_does_not_increment_send_count_on_failure(
 ) -> None:
     database_path = tmp_path / "smhelper.db"
     engine = create_engine_from_url(f"sqlite+pysqlite:///{database_path}")
+    now = datetime(2026, 6, 2, 10, 0, tzinfo=UTC)
     app = create_app(
         engine=engine,
         admin_credentials=AdminCredentials(
@@ -217,6 +230,8 @@ def test_send_result_api_does_not_increment_send_count_on_failure(
             password="secret",
             secret_key="test-secret",
         ),
+        clock=FixedClock(now),
+        send_cooldown_seconds=300,
     )
     with Session(engine) as session:
         session.add(
@@ -278,6 +293,8 @@ def test_send_result_api_does_not_increment_send_count_on_failure(
         assert session_record is not None
         assert session_record.status == "waiting"
         assert session_record.last_send_at is None
+        assert session_record.cooldown_until is None
         assert account is not None
         assert account.sends_today == 4
+        assert account.cooldown_until is None
     engine.dispose()

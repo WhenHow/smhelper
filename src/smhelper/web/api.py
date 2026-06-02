@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import uuid4
 
@@ -71,7 +71,7 @@ def report_session_status(
     report: SessionStatusReport,
 ) -> dict[str, str]:
     """Persist worker-reported session status."""
-    now = datetime.now(tz=UTC)
+    now = _now(request)
     with Session(request.app.state.engine) as db_session:
         session_record = db_session.get(AccountLiveSessionRecord, session_id)
         if session_record is None:
@@ -99,7 +99,8 @@ def report_send_result(
     report: SendResultReport,
 ) -> dict[str, str]:
     """Persist worker-reported send result and update related records."""
-    now = datetime.now(tz=UTC)
+    now = _now(request)
+    send_cooldown_seconds = int(getattr(request.app.state, "send_cooldown_seconds", 0))
     with Session(request.app.state.engine) as db_session:
         dispatch_job = db_session.get(DispatchJobRecord, report.dispatch_job_id)
         session_record = db_session.get(AccountLiveSessionRecord, report.session_id)
@@ -129,6 +130,9 @@ def report_send_result(
         session_record.last_send_at = now if normalized_status == "success" else None
         if normalized_status == "success" and account_record is not None:
             account_record.sends_today += 1
+            cooldown_until = now + timedelta(seconds=send_cooldown_seconds)
+            account_record.cooldown_until = cooldown_until
+            session_record.cooldown_until = cooldown_until
         session_record.active_slot_key = AccountLiveSessionRecord.build_active_slot_key(
             live_task_id=session_record.live_task_id,
             account_id=session_record.account_id,
@@ -137,3 +141,10 @@ def report_send_result(
         db_session.commit()
 
     return {"status": "ok"}
+
+
+def _now(request: Request) -> datetime:
+    clock = getattr(request.app.state, "clock", None)
+    if clock is not None:
+        return clock.now()
+    return datetime.now(tz=UTC)

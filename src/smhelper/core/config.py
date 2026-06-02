@@ -12,6 +12,7 @@ from smhelper.core.exceptions import ConfigurationError
 DEFAULT_DATABASE_URL = "mysql+pymysql://root:@127.0.0.1:3306/smhelper"
 DEFAULT_CELERY_BROKER_URL = "redis://:tbui-666@127.0.0.1:6379/0"
 DEFAULT_CELERY_RESULT_BACKEND_URL = "redis://:tbui-666@127.0.0.1:6379/1"
+DEFAULT_SEND_COOLDOWN_SECONDS = 300
 
 
 @dataclass(frozen=True, slots=True)
@@ -23,6 +24,7 @@ class RuntimeSettings:
     database_url: str
     celery_broker_url: str
     celery_result_backend_url: str
+    send_cooldown_seconds: int
     default_platform: str = "xhs"
 
     @classmethod
@@ -55,6 +57,11 @@ class RuntimeSettings:
             default=DEFAULT_CELERY_RESULT_BACKEND_URL,
             name="celery result backend url",
         )
+        send_cooldown_seconds = _non_negative_int_setting(
+            source.get("SMHELPER_SEND_COOLDOWN_SECONDS"),
+            default=DEFAULT_SEND_COOLDOWN_SECONDS,
+            name="send cooldown seconds",
+        )
 
         raw_state_path = source.get("SMHELPER_STATE_PATH")
         state_path = (
@@ -75,6 +82,7 @@ class RuntimeSettings:
             database_url=database_url,
             celery_broker_url=celery_broker_url,
             celery_result_backend_url=celery_result_backend_url,
+            send_cooldown_seconds=send_cooldown_seconds,
             default_platform=platform,
         )
 
@@ -84,4 +92,21 @@ def _required_setting(value: str | None, *, default: str, name: str) -> str:
     resolved = default if value is None else value.strip()
     if not resolved:
         raise ConfigurationError(f"{name} must not be blank")
+    return resolved
+
+
+def _non_negative_int_setting(
+    value: str | None,
+    *,
+    default: int,
+    name: str,
+) -> int:
+    """Return a non-negative integer setting value or its default."""
+    raw = str(default) if value is None else value.strip()
+    try:
+        resolved = int(raw)
+    except ValueError as exc:
+        raise ConfigurationError(f"{name} must be a non-negative integer") from exc
+    if resolved < 0:
+        raise ConfigurationError(f"{name} must be a non-negative integer")
     return resolved

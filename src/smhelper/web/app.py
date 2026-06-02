@@ -37,6 +37,7 @@ def create_app(
     browser_task_publisher: SendCommentTaskPublisher | None = None,
     ids: IdGenerator | None = None,
     clock: Clock | None = None,
+    send_cooldown_seconds: int | None = None,
 ) -> FastAPI:
     """Create the FastAPI application and attach SQLAdmin."""
     app = FastAPI(title="smhelper")
@@ -49,6 +50,12 @@ def create_app(
     Base.metadata.create_all(app_engine)
     app.include_router(api_router)
     resolved_clock = clock or SystemClock()
+    app.state.clock = resolved_clock
+    app.state.send_cooldown_seconds = (
+        settings.send_cooldown_seconds
+        if send_cooldown_seconds is None
+        else send_cooldown_seconds
+    )
     app.state.candidate_dispatcher = SqlAlchemyCandidateDispatcher(
         session_factory=session_factory,
         ids=ids or UuidGenerator(),
