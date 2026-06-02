@@ -60,6 +60,7 @@
 |       |   |   `-- sqlalchemy/
 |       |   |       |-- __init__.py
 |       |   |       |-- account_entry_dispatcher.py
+|       |   |       |-- account_entry_planner.py
 |       |   |       |-- accounts.py
 |       |   |       |-- base.py
 |       |   |       |-- candidate_dispatcher.py
@@ -168,6 +169,7 @@
     |   |   `-- test_ffmpeg_tools.py
     |   |-- persistence/
     |   |   |-- test_account_entry_dispatcher.py
+    |   |   |-- test_account_entry_planner.py
     |   |   |-- test_candidate_dispatcher.py
     |   |   |-- test_sqlalchemy_records.py
     |   |   `-- test_sqlalchemy_session.py
