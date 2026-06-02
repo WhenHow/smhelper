@@ -25,6 +25,7 @@ from smhelper.live.domain.account_live_session import (
     RESTARTABLE_SESSION_STATUSES,
     AccountLiveSessionStatus,
 )
+from smhelper.live.domain.dispatch_job import DispatchJobStatus
 
 router = APIRouter(prefix="/api")
 RESTARTABLE_SESSION_STATUS_VALUES = {
@@ -147,7 +148,7 @@ def report_send_result(
             )
         if session_record.status in TERMINAL_SESSION_STATUS_VALUES:
             return {"status": "ignored"}
-        if dispatch_job.status in {"success", "failed"}:
+        if dispatch_job.status != DispatchJobStatus.RUNNING.value:
             return {"status": "ignored"}
 
         normalized_status = report.status
