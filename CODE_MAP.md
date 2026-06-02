@@ -134,6 +134,7 @@
 |       |   |-- __init__.py
 |       |   `-- xhs/
 |       |       |-- __init__.py
+|       |       |-- celery_worker.py
 |       |       |-- worker_runtime.py
 |       |       `-- browser/
 |       |           |-- __init__.py
@@ -207,6 +208,7 @@
     |   `-- test_local_state.py
     |-- platforms/
     |   `-- xhs/
+    |       |-- test_celery_worker.py
     |       |-- test_cloakbrowser_live_room.py
     |       |-- test_live_room_operator.py
     |       |-- test_stream_discovery.py
