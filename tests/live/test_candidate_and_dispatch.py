@@ -94,6 +94,48 @@ def test_candidate_approval_requires_non_blank_final_text() -> None:
         )
 
 
+def test_candidate_approval_requires_pending_review_status() -> None:
+    candidate = CandidateQuestion(
+        id="candidate-1",
+        live_task_id="live-1",
+        segment_id="segment-1",
+        question="Question?",
+        reason="reason",
+        risk_level="low",
+        raw_response="{}",
+        status=CandidateQuestionStatus.PARSE_FAILED,
+        generated_at=datetime(2026, 6, 1, 12, 0, tzinfo=UTC),
+    )
+
+    with pytest.raises(InvalidCandidateQuestion, match="pending review"):
+        candidate.approve(
+            final_text="Is this suitable?",
+            reviewed_by="operator",
+            reviewed_at=datetime(2026, 6, 1, 12, 1, tzinfo=UTC),
+        )
+
+
+def test_candidate_reject_requires_pending_review_status() -> None:
+    candidate = CandidateQuestion(
+        id="candidate-1",
+        live_task_id="live-1",
+        segment_id="segment-1",
+        question="Question?",
+        reason="reason",
+        risk_level="low",
+        raw_response="{}",
+        status=CandidateQuestionStatus.APPROVED,
+        generated_at=datetime(2026, 6, 1, 12, 0, tzinfo=UTC),
+    )
+
+    with pytest.raises(InvalidCandidateQuestion, match="pending review"):
+        candidate.reject(
+            reason="not useful",
+            reviewed_by="operator",
+            reviewed_at=datetime(2026, 6, 1, 12, 1, tzinfo=UTC),
+        )
+
+
 def test_candidate_approval_rejects_forbidden_terms() -> None:
     candidate = CandidateQuestion(
         id="candidate-1",

@@ -49,6 +49,7 @@ class CandidateQuestion:
         forbidden_terms: tuple[str, ...] = (),
     ) -> CandidateQuestion:
         """Return an approved candidate while preserving the original LLM text."""
+        self._ensure_pending_review()
         normalized_final_text = final_text.strip()
         if not normalized_final_text:
             raise InvalidCandidateQuestion("approved final text must not be blank")
@@ -77,6 +78,7 @@ class CandidateQuestion:
         reviewed_at: datetime,
     ) -> CandidateQuestion:
         """Return a rejected candidate with an operator reason."""
+        self._ensure_pending_review()
         return replace(
             self,
             status=CandidateQuestionStatus.REJECTED,
@@ -85,6 +87,13 @@ class CandidateQuestion:
             reviewed_at=reviewed_at,
             rejection_reason=reason.strip() or None,
         )
+
+    def _ensure_pending_review(self) -> None:
+        """Ensure review actions only apply to pending candidates."""
+        if self.status is not CandidateQuestionStatus.PENDING_REVIEW:
+            raise InvalidCandidateQuestion(
+                "candidate must be pending review before operator review"
+            )
 
 
 def _find_forbidden_term(
