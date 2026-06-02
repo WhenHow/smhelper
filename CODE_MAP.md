@@ -67,6 +67,7 @@
 |       |   |       |-- candidate_dispatcher.py
 |       |   |       |-- candidate_reviewer.py
 |       |   |       |-- live.py
+|       |   |       |-- live_task_observer.py
 |       |   |       |-- live_task_shutdown_coordinator.py
 |       |   |       |-- live_task_starter.py
 |       |   |       |-- live_task_terminator.py
@@ -98,6 +99,7 @@
 |       |   |   |-- __init__.py
 |       |   |   |-- ports/
 |       |   |   |   |-- __init__.py
+|       |   |   |   |-- live_stream_observer.py
 |       |   |   |   |-- media_artifacts.py
 |       |   |   |   |-- question_generator.py
 |       |   |   |   `-- speech_to_text.py
@@ -193,6 +195,7 @@
     |   |   |-- test_account_session_restarter.py
     |   |   |-- test_candidate_dispatcher.py
     |   |   |-- test_candidate_reviewer.py
+    |   |   |-- test_live_task_observer_runner.py
     |   |   |-- test_live_task_shutdown_coordinator.py
     |   |   |-- test_live_task_starter.py
     |   |   |-- test_live_task_terminator.py

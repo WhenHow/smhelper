@@ -5,6 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 
+from smhelper.live.application.ports.live_stream_observer import (
+    LiveStreamObservation,
+    LiveStreamObservationStatus,
+)
+
 
 class XhsLiveRoomStatus(str, Enum):
     """Observed Xiaohongshu live-room status."""
@@ -47,6 +52,19 @@ def select_latest_stream_url(resource_urls: list[str]) -> str | None:
         if is_xhs_stream_url(url):
             return url
     return None
+
+
+def observe_xhs_live_stream(signals: XhsLiveRoomSignals) -> LiveStreamObservation:
+    """Map Xiaohongshu page signals to the generic live-stream observer port."""
+    status = XhsLiveRoomStatus.from_signals(signals)
+    if status is XhsLiveRoomStatus.NOT_LIVE:
+        return LiveStreamObservation(status=LiveStreamObservationStatus.NOT_LIVE)
+    if status is XhsLiveRoomStatus.LIVE:
+        return LiveStreamObservation(
+            status=LiveStreamObservationStatus.LIVE,
+            stream_url=signals.stream_url,
+        )
+    return LiveStreamObservation(status=LiveStreamObservationStatus.UNKNOWN)
 
 
 def _is_finished_text(text: str) -> bool:
