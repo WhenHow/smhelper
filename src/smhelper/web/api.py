@@ -13,6 +13,7 @@ from starlette.responses import FileResponse
 
 from smhelper.infrastructure.persistence.sqlalchemy.accounts import (
     AccountAuthStateRecord,
+    PlatformAccountRecord,
 )
 from smhelper.infrastructure.persistence.sqlalchemy.live import (
     AccountLiveSessionRecord,
@@ -102,6 +103,7 @@ def report_send_result(
     with Session(request.app.state.engine) as db_session:
         dispatch_job = db_session.get(DispatchJobRecord, report.dispatch_job_id)
         session_record = db_session.get(AccountLiveSessionRecord, report.session_id)
+        account_record = db_session.get(PlatformAccountRecord, report.account_id)
         if dispatch_job is None:
             raise HTTPException(status_code=404, detail="dispatch job not found")
         if session_record is None:
@@ -125,6 +127,8 @@ def report_send_result(
         dispatch_job.failure_reason = report.failure_reason
         session_record.status = "waiting"
         session_record.last_send_at = now if normalized_status == "success" else None
+        if normalized_status == "success" and account_record is not None:
+            account_record.sends_today += 1
         session_record.active_slot_key = AccountLiveSessionRecord.build_active_slot_key(
             live_task_id=session_record.live_task_id,
             account_id=session_record.account_id,
