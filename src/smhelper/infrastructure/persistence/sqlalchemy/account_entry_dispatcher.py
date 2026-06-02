@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 from smhelper.infrastructure.persistence.sqlalchemy.live import (
@@ -40,8 +41,22 @@ class SqlAlchemyAccountEntryDispatcher:
         session_ids: list[str] = []
 
         with self.session_factory() as session:
+            reserved_active_slot_keys = self._load_reserved_active_slot_keys(
+                session=session,
+                plans=plans,
+            )
             for plan in plans:
                 live_session = plan.session
+                active_slot_key = AccountLiveSessionRecord.build_active_slot_key(
+                    live_task_id=live_session.live_task_id,
+                    account_id=live_session.account_id,
+                    status=live_session.status.value,
+                )
+                if (
+                    active_slot_key is not None
+                    and active_slot_key in reserved_active_slot_keys
+                ):
+                    continue
                 session.add(
                     AccountLiveSessionRecord(
                         id=live_session.id,
@@ -51,11 +66,7 @@ class SqlAlchemyAccountEntryDispatcher:
                         account_id=live_session.account_id,
                         node_id=live_session.node_id,
                         status=live_session.status.value,
-                        active_slot_key=AccountLiveSessionRecord.build_active_slot_key(
-                            live_task_id=live_session.live_task_id,
-                            account_id=live_session.account_id,
-                            status=live_session.status.value,
-                        ),
+                        active_slot_key=active_slot_key,
                         opened_at=live_session.opened_at,
                         last_heartbeat_at=live_session.last_heartbeat_at,
                         last_send_at=live_session.last_send_at,
@@ -80,6 +91,8 @@ class SqlAlchemyAccountEntryDispatcher:
                     )
                 )
                 session_ids.append(live_session.id)
+                if active_slot_key is not None:
+                    reserved_active_slot_keys.add(active_slot_key)
 
             session.commit()
 
@@ -90,3 +103,33 @@ class SqlAlchemyAccountEntryDispatcher:
                 countdown_seconds=countdown_seconds,
             )
         return session_ids
+
+    @staticmethod
+    def _load_reserved_active_slot_keys(
+        *,
+        session: Session,
+        plans: list[AccountEntryPlan],
+    ) -> set[str]:
+        planned_slot_keys = {
+            slot_key
+            for plan in plans
+            if (
+                slot_key := AccountLiveSessionRecord.build_active_slot_key(
+                    live_task_id=plan.session.live_task_id,
+                    account_id=plan.session.account_id,
+                    status=plan.session.status.value,
+                )
+            )
+            is not None
+        }
+        if not planned_slot_keys:
+            return set()
+        return {
+            slot_key
+            for slot_key in session.scalars(
+                select(AccountLiveSessionRecord.active_slot_key).where(
+                    AccountLiveSessionRecord.active_slot_key.in_(planned_slot_keys)
+                )
+            ).all()
+            if slot_key is not None
+        }
