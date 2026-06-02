@@ -172,6 +172,7 @@ def report_send_result(
         dispatch_job.finished_at = now
         dispatch_job.failure_reason = report.failure_reason
         session_record.status = "waiting"
+        session_record.send_started_at = None
         session_record.last_send_at = now if normalized_status == "success" else None
         if normalized_status == "success" and account_record is not None:
             account_record.sends_today += 1

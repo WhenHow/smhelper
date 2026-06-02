@@ -368,6 +368,7 @@ def test_send_result_api_records_attempt_and_updates_dispatch_job(
                 node_id="node-a",
                 status="sending",
                 active_slot_key="live-1:account-1",
+                send_started_at=datetime(2026, 6, 2, 9, 59, tzinfo=UTC),
             )
         )
         session.add(
@@ -406,6 +407,7 @@ def test_send_result_api_records_attempt_and_updates_dispatch_job(
         assert job.status == "success"
         assert session_record is not None
         assert session_record.status == "waiting"
+        assert session_record.send_started_at is None
         assert session_record.last_send_at == now.replace(tzinfo=None)
         assert session_record.cooldown_until == (now + timedelta(seconds=300)).replace(
             tzinfo=None
@@ -887,6 +889,7 @@ def test_send_result_api_does_not_increment_send_count_on_failure(
                 node_id="node-a",
                 status="sending",
                 active_slot_key="live-1:account-1",
+                send_started_at=datetime(2026, 6, 2, 9, 59, tzinfo=UTC),
             )
         )
         session.add(
@@ -925,6 +928,7 @@ def test_send_result_api_does_not_increment_send_count_on_failure(
         assert job.failure_reason == "input not found"
         assert session_record is not None
         assert session_record.status == "waiting"
+        assert session_record.send_started_at is None
         assert session_record.last_send_at is None
         assert session_record.cooldown_until is None
         assert account is not None
