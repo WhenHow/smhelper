@@ -76,6 +76,7 @@
 |       |       `-- celery/
 |       |           |-- __init__.py
 |       |           |-- app.py
+|       |           |-- center_api_client.py
 |       |           |-- node_handler.py
 |       |           |-- node_tasks.py
 |       |           |-- publisher.py
@@ -183,6 +184,7 @@
     |   |   `-- test_sqlalchemy_session.py
     |   `-- task_queue/
     |       |-- test_celery_publisher.py
+    |       |-- test_center_api_client.py
     |       |-- test_node_browser_task_handler.py
     |       `-- test_node_task_registration.py
     |-- live/
