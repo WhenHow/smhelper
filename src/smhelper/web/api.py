@@ -134,6 +134,8 @@ def report_send_result(
                 status_code=409,
                 detail="send result does not match dispatch job",
             )
+        if dispatch_job.status in {"success", "failed"}:
+            return {"status": "ignored"}
 
         normalized_status = "success" if report.status == "success" else "failed"
         db_session.add(
