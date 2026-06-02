@@ -32,6 +32,8 @@ class RuntimeSettings:
     ffmpeg_path: str
     llm_model: str | None
     llm_fallback_models: tuple[str, ...]
+    asr_provider_name: str | None
+    asr_provider_callable: str | None
     default_platform: str = "xhs"
 
     @classmethod
@@ -83,6 +85,10 @@ class RuntimeSettings:
         llm_fallback_models = _optional_csv_setting(
             source.get("SMHELPER_LLM_FALLBACK_MODELS")
         )
+        asr_provider_name = _optional_setting(source.get("SMHELPER_ASR_PROVIDER_NAME"))
+        asr_provider_callable = _optional_setting(
+            source.get("SMHELPER_ASR_PROVIDER_CALLABLE")
+        )
 
         raw_state_path = source.get("SMHELPER_STATE_PATH")
         state_path = (
@@ -115,6 +121,8 @@ class RuntimeSettings:
             ffmpeg_path=ffmpeg_path,
             llm_model=llm_model,
             llm_fallback_models=llm_fallback_models,
+            asr_provider_name=asr_provider_name,
+            asr_provider_callable=asr_provider_callable,
             default_platform=platform,
         )
 
