@@ -76,15 +76,21 @@ class NodeBrowserTaskHandler:
 
     def enter_live_room(self, payload: EnterLiveRoomPayload) -> None:
         """Fetch auth state, enter the live room and report the session status."""
-        storage_state_path = self.center_api.fetch_storage_state(
-            account_id=payload.account_id,
-            platform=payload.platform,
-        )
-        result = self.browser_operator.enter_live_room(
-            session_id=payload.session_id,
-            room_url=payload.room_url,
-            storage_state_path=storage_state_path,
-        )
+        try:
+            storage_state_path = self.center_api.fetch_storage_state(
+                account_id=payload.account_id,
+                platform=payload.platform,
+            )
+            result = self.browser_operator.enter_live_room(
+                session_id=payload.session_id,
+                room_url=payload.room_url,
+                storage_state_path=storage_state_path,
+            )
+        except Exception as exc:  # noqa: BLE001 - local node failures must be reported.
+            result = BrowserActionResult(
+                success=False,
+                failure_reason=_failure_reason(exc),
+            )
         self.center_api.report_session_status(
             session_id=payload.session_id,
             status="waiting" if result.success else "failed",
@@ -93,10 +99,16 @@ class NodeBrowserTaskHandler:
 
     def send_comment(self, payload: SendCommentPayload) -> None:
         """Send a comment and report first-phase operation result."""
-        result = self.browser_operator.send_comment(
-            session_id=payload.session_id,
-            final_text=payload.final_text,
-        )
+        try:
+            result = self.browser_operator.send_comment(
+                session_id=payload.session_id,
+                final_text=payload.final_text,
+            )
+        except Exception as exc:  # noqa: BLE001 - local node failures must be reported.
+            result = BrowserActionResult(
+                success=False,
+                failure_reason=_failure_reason(exc),
+            )
         self.center_api.report_send_result(
             dispatch_job_id=payload.dispatch_job_id,
             session_id=payload.session_id,
@@ -107,9 +119,22 @@ class NodeBrowserTaskHandler:
 
     def close_session(self, payload: CloseSessionPayload) -> None:
         """Close a browser session and report terminal session state."""
-        result = self.browser_operator.close_session(session_id=payload.session_id)
+        try:
+            result = self.browser_operator.close_session(session_id=payload.session_id)
+        except Exception as exc:  # noqa: BLE001 - local node failures must be reported.
+            result = BrowserActionResult(
+                success=False,
+                failure_reason=_failure_reason(exc),
+            )
         self.center_api.report_session_status(
             session_id=payload.session_id,
             status="closed" if result.success else "lost",
             failure_reason=result.failure_reason,
         )
+
+
+def _failure_reason(exc: Exception) -> str:
+    reason = str(exc).strip()
+    if reason:
+        return reason
+    return exc.__class__.__name__
