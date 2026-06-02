@@ -109,7 +109,10 @@ class SqlAlchemyCandidateDispatcher:
                     continue
 
                 worker = session.get(WorkerNodeRecord, selected_session.node_id)
-                if worker is None or not worker.online:
+                if worker is None or not self._worker_can_handle_session(
+                    worker=worker,
+                    selected_session=selected_session,
+                ):
                     continue
 
                 dispatch_job_id = self.ids.new_id("job")
@@ -172,6 +175,14 @@ class SqlAlchemyCandidateDispatcher:
             )
         except InvalidCandidateQuestion:
             return None
+
+    @staticmethod
+    def _worker_can_handle_session(
+        *,
+        worker: WorkerNodeRecord,
+        selected_session: AccountLiveSessionRecord,
+    ) -> bool:
+        return worker.online and selected_session.platform in worker.supported_platforms
 
     @staticmethod
     def _load_running_live_task_ids(
