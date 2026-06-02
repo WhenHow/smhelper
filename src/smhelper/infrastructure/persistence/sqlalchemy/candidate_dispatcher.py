@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol
@@ -9,8 +10,17 @@ from typing import Protocol
 from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
+from smhelper.accounts.domain.account_auth_state import (
+    AccountAuthState,
+    AccountAuthStatus,
+)
+from smhelper.accounts.domain.platform_account import PlatformAccount
 from smhelper.core.clock import Clock
 from smhelper.core.ids import IdGenerator
+from smhelper.infrastructure.persistence.sqlalchemy.accounts import (
+    AccountAuthStateRecord,
+    PlatformAccountRecord,
+)
 from smhelper.infrastructure.persistence.sqlalchemy.live import (
     AccountLiveSessionRecord,
     CandidateQuestionRecord,
@@ -157,7 +167,16 @@ class SqlAlchemyCandidateDispatcher:
                 AccountLiveSessionRecord.status == "waiting",
             )
         ).all()
-        domain_sessions = [self._to_domain(record) for record in waiting_records]
+        available_account_ids = self._load_available_account_ids(
+            session=session,
+            records=waiting_records,
+            now=now,
+        )
+        domain_sessions = [
+            self._to_domain(record)
+            for record in waiting_records
+            if record.account_id in available_account_ids
+        ]
         try:
             selected = self.send_account_policy.select_session(
                 sessions=domain_sessions,
@@ -168,6 +187,72 @@ class SqlAlchemyCandidateDispatcher:
         return next(
             (record for record in waiting_records if record.id == selected.id),
             None,
+        )
+
+    @staticmethod
+    def _load_available_account_ids(
+        *,
+        session: Session,
+        records: Sequence[AccountLiveSessionRecord],
+        now: datetime,
+    ) -> set[str]:
+        account_keys = {(record.account_id, record.platform) for record in records}
+        if not account_keys:
+            return set()
+
+        account_ids = {account_id for account_id, _ in account_keys}
+        platforms = {platform for _, platform in account_keys}
+        account_records = {
+            (record.id, record.platform): record
+            for record in session.scalars(
+                select(PlatformAccountRecord).where(
+                    PlatformAccountRecord.id.in_(account_ids),
+                    PlatformAccountRecord.platform.in_(platforms),
+                )
+            ).all()
+        }
+        auth_records = {
+            (record.account_id, record.platform): record
+            for record in session.scalars(
+                select(AccountAuthStateRecord).where(
+                    AccountAuthStateRecord.account_id.in_(account_ids),
+                    AccountAuthStateRecord.platform.in_(platforms),
+                )
+            ).all()
+        }
+
+        available: set[str] = set()
+        for account_id, platform in account_keys:
+            account_record = account_records.get((account_id, platform))
+            auth_record = auth_records.get((account_id, platform))
+            if account_record is None or auth_record is None:
+                continue
+            account = SqlAlchemyCandidateDispatcher._to_account(account_record)
+            auth_state = SqlAlchemyCandidateDispatcher._to_auth_state(auth_record)
+            if account.is_available(now=now, auth_state=auth_state):
+                available.add(account_id)
+        return available
+
+    @staticmethod
+    def _to_account(record: PlatformAccountRecord) -> PlatformAccount:
+        return PlatformAccount(
+            id=record.id,
+            platform=record.platform,
+            display_name=record.display_name,
+            enabled=record.enabled,
+            daily_send_limit=record.daily_send_limit,
+            sends_today=record.sends_today,
+            cooldown_until=record.cooldown_until,
+        )
+
+    @staticmethod
+    def _to_auth_state(record: AccountAuthStateRecord) -> AccountAuthState:
+        return AccountAuthState(
+            account_id=record.account_id,
+            platform=record.platform,
+            status=AccountAuthStatus(record.status),
+            storage_state_path=record.storage_state_path,
+            failure_reason=record.failure_reason,
         )
 
     @staticmethod

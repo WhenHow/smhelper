@@ -8,6 +8,10 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from smhelper.core.ids import SequenceIdGenerator
+from smhelper.infrastructure.persistence.sqlalchemy.accounts import (
+    AccountAuthStateRecord,
+    PlatformAccountRecord,
+)
 from smhelper.infrastructure.persistence.sqlalchemy.base import Base
 from smhelper.infrastructure.persistence.sqlalchemy.live import (
     AccountLiveSessionRecord,
@@ -72,6 +76,24 @@ def test_sqladmin_candidate_approve_action_dispatches_send_job(tmp_path: Path) -
                 status="pending_review",
                 final_text="Is this suitable for oily skin?",
                 generated_at=now,
+            )
+        )
+        session.add(
+            PlatformAccountRecord(
+                id="account-1",
+                platform="xhs",
+                display_name="Account 1",
+                enabled=True,
+                daily_send_limit=10,
+                sends_today=0,
+            )
+        )
+        session.add(
+            AccountAuthStateRecord(
+                account_id="account-1",
+                platform="xhs",
+                status="valid",
+                storage_state_path="data/auth/xhs/account-1/storage_state.json",
             )
         )
         session.add(
