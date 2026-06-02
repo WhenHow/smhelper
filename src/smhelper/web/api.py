@@ -9,6 +9,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 from starlette.responses import FileResponse
 
@@ -112,6 +113,12 @@ def report_session_status(
         if session_record.active_slot_key is None:
             session_record.closed_at = now
             session_record.send_started_at = None
+            _fail_running_dispatch_jobs_for_terminal_session(
+                db_session=db_session,
+                session_record=session_record,
+                now=now,
+                failure_reason=report.failure_reason or f"session_{reported_status}",
+            )
         db_session.commit()
 
     _restart_session_if_needed(
@@ -195,6 +202,37 @@ def _now(request: Request) -> datetime:
     if clock is not None:
         return clock.now()
     return datetime.now(tz=UTC)
+
+
+def _fail_running_dispatch_jobs_for_terminal_session(
+    *,
+    db_session: Session,
+    session_record: AccountLiveSessionRecord,
+    now: datetime,
+    failure_reason: str,
+) -> None:
+    running_jobs = db_session.scalars(
+        select(DispatchJobRecord).where(
+            DispatchJobRecord.account_live_session_id == session_record.id,
+            DispatchJobRecord.status == DispatchJobStatus.RUNNING.value,
+        )
+    ).all()
+    for dispatch_job in running_jobs:
+        db_session.add(
+            SendAttemptRecord(
+                id=f"attempt-{uuid4().hex}",
+                dispatch_job_id=dispatch_job.id,
+                account_live_session_id=session_record.id,
+                account_id=dispatch_job.account_id,
+                status="failed",
+                success_detection="operation_completed",
+                attempted_at=now,
+                failure_reason=failure_reason,
+            )
+        )
+        dispatch_job.status = DispatchJobStatus.FAILED.value
+        dispatch_job.finished_at = now
+        dispatch_job.failure_reason = failure_reason
 
 
 def _restart_session_if_needed(

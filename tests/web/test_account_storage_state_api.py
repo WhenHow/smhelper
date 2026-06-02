@@ -379,6 +379,75 @@ def test_session_status_api_clears_send_start_time_for_terminal_report(
     engine.dispose()
 
 
+def test_session_status_api_fails_running_dispatch_job_for_terminal_session(
+    tmp_path: Path,
+) -> None:
+    database_path = tmp_path / "smhelper.db"
+    engine = create_engine_from_url(f"sqlite+pysqlite:///{database_path}")
+    now = datetime(2026, 6, 2, 10, 0, tzinfo=UTC)
+    app = create_app(
+        engine=engine,
+        admin_credentials=AdminCredentials(
+            username="admin",
+            password="secret",
+            secret_key="test-secret",
+        ),
+        clock=FixedClock(now),
+    )
+    with Session(engine) as session:
+        session.add(
+            AccountLiveSessionRecord(
+                id="session-1",
+                live_task_id="live-1",
+                platform="xhs",
+                room_url="https://example.com/live/1",
+                account_id="account-1",
+                node_id="node-a",
+                status="sending",
+                active_slot_key="live-1:account-1",
+                send_started_at=datetime(2026, 6, 2, 9, 59, tzinfo=UTC),
+            )
+        )
+        session.add(
+            DispatchJobRecord(
+                id="job-1",
+                candidate_question_id="candidate-1",
+                live_task_id="live-1",
+                account_live_session_id="session-1",
+                account_id="account-1",
+                final_text="Is this suitable for oily skin?",
+                status="running",
+                created_at=datetime(2026, 6, 1, 12, 0, tzinfo=UTC),
+                started_at=datetime(2026, 6, 2, 9, 59, tzinfo=UTC),
+            )
+        )
+        session.commit()
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/live/sessions/session-1/status",
+            json={"status": "failed", "failure_reason": "browser_crashed"},
+        )
+
+    assert response.status_code == 200
+    with Session(engine) as session:
+        job = session.get(DispatchJobRecord, "job-1")
+        attempts = session.query(SendAttemptRecord).all()
+        assert job is not None
+        assert job.status == "failed"
+        assert job.finished_at == now.replace(tzinfo=None)
+        assert job.failure_reason == "browser_crashed"
+        assert len(attempts) == 1
+        assert attempts[0].dispatch_job_id == "job-1"
+        assert attempts[0].account_live_session_id == "session-1"
+        assert attempts[0].account_id == "account-1"
+        assert attempts[0].status == "failed"
+        assert attempts[0].success_detection == "operation_completed"
+        assert attempts[0].attempted_at == now.replace(tzinfo=None)
+        assert attempts[0].failure_reason == "browser_crashed"
+    engine.dispose()
+
+
 def test_send_result_api_records_attempt_and_updates_dispatch_job(
     tmp_path: Path,
 ) -> None:
