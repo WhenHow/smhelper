@@ -21,11 +21,19 @@ from smhelper.infrastructure.persistence.sqlalchemy.live import (
     DispatchJobRecord,
     SendAttemptRecord,
 )
-from smhelper.live.domain.account_live_session import RESTARTABLE_SESSION_STATUSES
+from smhelper.live.domain.account_live_session import (
+    RESTARTABLE_SESSION_STATUSES,
+    AccountLiveSessionStatus,
+)
 
 router = APIRouter(prefix="/api")
 RESTARTABLE_SESSION_STATUS_VALUES = {
     status.value for status in RESTARTABLE_SESSION_STATUSES
+}
+TERMINAL_SESSION_STATUS_VALUES = {
+    AccountLiveSessionStatus.CLOSED.value,
+    AccountLiveSessionStatus.FAILED.value,
+    AccountLiveSessionStatus.LOST.value,
 }
 
 
@@ -88,6 +96,8 @@ def report_session_status(
         session_record = db_session.get(AccountLiveSessionRecord, session_id)
         if session_record is None:
             raise HTTPException(status_code=404, detail="session not found")
+        if session_record.status in TERMINAL_SESSION_STATUS_VALUES:
+            return {"status": "ignored"}
 
         session_record.status = report.status
         session_record.failure_reason = report.failure_reason

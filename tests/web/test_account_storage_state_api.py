@@ -153,6 +153,56 @@ def test_session_status_api_updates_worker_reported_session_state(
     engine.dispose()
 
 
+def test_session_status_api_ignores_stale_active_report_for_terminal_session(
+    tmp_path: Path,
+) -> None:
+    database_path = tmp_path / "smhelper.db"
+    engine = create_engine_from_url(f"sqlite+pysqlite:///{database_path}")
+    closed_at = datetime(2026, 6, 2, 10, 0, tzinfo=UTC)
+    report_at = datetime(2026, 6, 2, 10, 5, tzinfo=UTC)
+    app = create_app(
+        engine=engine,
+        admin_credentials=AdminCredentials(
+            username="admin",
+            password="secret",
+            secret_key="test-secret",
+        ),
+        clock=FixedClock(report_at),
+    )
+    with Session(engine) as session:
+        session.add(
+            AccountLiveSessionRecord(
+                id="session-1",
+                live_task_id="live-1",
+                platform="xhs",
+                room_url="https://example.com/live/1",
+                account_id="account-1",
+                node_id="node-a",
+                status="closed",
+                active_slot_key=None,
+                closed_at=closed_at,
+            )
+        )
+        session.commit()
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/live/sessions/session-1/status",
+            json={"status": "waiting", "failure_reason": None},
+        )
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ignored"}
+    with Session(engine) as session:
+        session_record = session.get(AccountLiveSessionRecord, "session-1")
+        assert session_record is not None
+        assert session_record.status == "closed"
+        assert session_record.active_slot_key is None
+        assert session_record.closed_at == closed_at.replace(tzinfo=None)
+        assert session_record.last_heartbeat_at is None
+    engine.dispose()
+
+
 def test_session_status_api_restarts_failed_session_when_live_task_is_running(
     tmp_path: Path,
 ) -> None:
