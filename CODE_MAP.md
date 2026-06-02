@@ -136,6 +136,7 @@
 |       |       |-- __init__.py
 |       |       `-- browser/
 |       |           |-- __init__.py
+|       |           |-- cloakbrowser_live_room.py
 |       |           |-- live_room_operator.py
 |       |           |-- selectors.py
 |       |           `-- stream_discovery.py
@@ -205,6 +206,7 @@
     |   `-- test_local_state.py
     |-- platforms/
     |   `-- xhs/
+    |       |-- test_cloakbrowser_live_room.py
     |       |-- test_live_room_operator.py
     |       `-- test_stream_discovery.py
     |-- web/
