@@ -70,6 +70,7 @@
 |       |   |       |-- live_task_shutdown_coordinator.py
 |       |   |       |-- live_task_terminator.py
 |       |   |       |-- segment_processor.py
+|       |   |       |-- segment_task_scheduler.py
 |       |   |       |-- session.py
 |       |   |       `-- workers.py
 |       |   `-- task_queue/
@@ -191,6 +192,7 @@
     |   |   |-- test_live_task_shutdown_coordinator.py
     |   |   |-- test_live_task_terminator.py
     |   |   |-- test_segment_processor.py
+    |   |   |-- test_segment_task_scheduler.py
     |   |   |-- test_sqlalchemy_records.py
     |   |   `-- test_sqlalchemy_session.py
     |   `-- task_queue/
