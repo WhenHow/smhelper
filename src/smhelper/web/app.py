@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from os import getenv
 from random import Random
 
 from fastapi import FastAPI
 from sqlalchemy import Engine
 
 from smhelper.core.clock import Clock, SystemClock
+from smhelper.core.config import RuntimeSettings
 from smhelper.core.ids import IdGenerator, UuidGenerator
 from smhelper.infrastructure.persistence.sqlalchemy.base import Base
 from smhelper.infrastructure.persistence.sqlalchemy.candidate_dispatcher import (
@@ -28,7 +28,7 @@ from smhelper.web.admin import AdminCredentials, configure_admin
 
 def create_app(
     *,
-    database_url: str = "sqlite+pysqlite:///data/smhelper.db",
+    database_url: str | None = None,
     engine: Engine | None = None,
     admin_credentials: AdminCredentials | None = None,
     browser_task_publisher: SendCommentTaskPublisher | None = None,
@@ -37,7 +37,11 @@ def create_app(
 ) -> FastAPI:
     """Create the FastAPI application and attach SQLAdmin."""
     app = FastAPI(title="smhelper")
-    app_engine = engine if engine is not None else create_engine_from_url(database_url)
+    settings = RuntimeSettings.from_env()
+    resolved_database_url = database_url or settings.database_url
+    app_engine = (
+        engine if engine is not None else create_engine_from_url(resolved_database_url)
+    )
     session_factory = create_session_factory(app_engine)
     Base.metadata.create_all(app_engine)
     app.include_router(api_router)
@@ -47,7 +51,7 @@ def create_app(
         clock=clock or SystemClock(),
         send_account_policy=SendAccountPolicy(rng=Random()),
         browser_task_publisher=browser_task_publisher
-        or _default_browser_task_publisher(),
+        or _default_browser_task_publisher(settings),
     )
     configure_admin(
         app=app,
@@ -59,10 +63,10 @@ def create_app(
     return app
 
 
-def _default_browser_task_publisher() -> BrowserTaskPublisher:
+def _default_browser_task_publisher(settings: RuntimeSettings) -> BrowserTaskPublisher:
     """Create the default Celery browser-task publisher."""
     celery_app = create_celery_app(
-        broker_url=getenv("SMHELPER_CELERY_BROKER_URL", "redis://localhost:6379/0"),
-        result_backend_url=getenv("SMHELPER_CELERY_RESULT_BACKEND_URL"),
+        broker_url=settings.celery_broker_url,
+        result_backend_url=settings.celery_result_backend_url,
     )
     return BrowserTaskPublisher(celery_app=celery_app)

@@ -19,12 +19,18 @@ def test_runtime_settings_uses_env_state_path_and_default_platform(
             "SMHELPER_STATE_PATH": str(state_path),
             "SMHELPER_BROWSER_PROFILES_DIR": str(profiles_dir),
             "SMHELPER_DEFAULT_PLATFORM": "xhs",
+            "SMHELPER_DATABASE_URL": "mysql+pymysql://user:pass@db:3306/custom",
+            "SMHELPER_CELERY_BROKER_URL": "redis://:secret@redis:6379/2",
+            "SMHELPER_CELERY_RESULT_BACKEND_URL": "redis://:secret@redis:6379/3",
         }
     )
 
     assert settings.state_path == state_path
     assert settings.browser_profiles_dir == profiles_dir
     assert settings.default_platform == "xhs"
+    assert settings.database_url == "mysql+pymysql://user:pass@db:3306/custom"
+    assert settings.celery_broker_url == "redis://:secret@redis:6379/2"
+    assert settings.celery_result_backend_url == "redis://:secret@redis:6379/3"
 
 
 def test_runtime_settings_uses_cwd_state_path_when_env_is_empty(
@@ -34,6 +40,9 @@ def test_runtime_settings_uses_cwd_state_path_when_env_is_empty(
 
     assert settings.state_path == tmp_path / ".smhelper" / "state.json"
     assert settings.browser_profiles_dir == tmp_path / ".smhelper" / "browser-profiles"
+    assert settings.database_url == "mysql+pymysql://root:@127.0.0.1:3306/smhelper"
+    assert settings.celery_broker_url == "redis://:tbui-666@127.0.0.1:6379/0"
+    assert settings.celery_result_backend_url == "redis://:tbui-666@127.0.0.1:6379/1"
 
 
 def test_runtime_settings_rejects_blank_platform(tmp_path: Path) -> None:

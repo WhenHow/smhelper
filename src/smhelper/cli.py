@@ -28,11 +28,10 @@ def main() -> None:
 )
 @click.option(
     "--database-url",
-    default="sqlite+pysqlite:///data/smhelper.db",
-    show_default=True,
-    help="SQLAlchemy database URL.",
+    default=None,
+    help="SQLAlchemy database URL. Defaults to SMHELPER_DATABASE_URL.",
 )
-def web(host: str, port: int, database_url: str) -> None:
+def web(host: str, port: int, database_url: str | None) -> None:
     """Run the FastAPI and SQLAdmin management backend."""
     import uvicorn
 

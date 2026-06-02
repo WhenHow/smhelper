@@ -9,6 +9,10 @@ from typing import Mapping
 
 from smhelper.core.exceptions import ConfigurationError
 
+DEFAULT_DATABASE_URL = "mysql+pymysql://root:@127.0.0.1:3306/smhelper"
+DEFAULT_CELERY_BROKER_URL = "redis://:tbui-666@127.0.0.1:6379/0"
+DEFAULT_CELERY_RESULT_BACKEND_URL = "redis://:tbui-666@127.0.0.1:6379/1"
+
 
 @dataclass(frozen=True, slots=True)
 class RuntimeSettings:
@@ -16,6 +20,9 @@ class RuntimeSettings:
 
     state_path: Path
     browser_profiles_dir: Path
+    database_url: str
+    celery_broker_url: str
+    celery_result_backend_url: str
     default_platform: str = "xhs"
 
     @classmethod
@@ -33,6 +40,21 @@ class RuntimeSettings:
         platform = source.get("SMHELPER_DEFAULT_PLATFORM", "xhs").strip()
         if not platform:
             raise ConfigurationError("default platform must not be blank")
+        database_url = _required_setting(
+            source.get("SMHELPER_DATABASE_URL"),
+            default=DEFAULT_DATABASE_URL,
+            name="database url",
+        )
+        celery_broker_url = _required_setting(
+            source.get("SMHELPER_CELERY_BROKER_URL"),
+            default=DEFAULT_CELERY_BROKER_URL,
+            name="celery broker url",
+        )
+        celery_result_backend_url = _required_setting(
+            source.get("SMHELPER_CELERY_RESULT_BACKEND_URL"),
+            default=DEFAULT_CELERY_RESULT_BACKEND_URL,
+            name="celery result backend url",
+        )
 
         raw_state_path = source.get("SMHELPER_STATE_PATH")
         state_path = (
@@ -50,5 +72,16 @@ class RuntimeSettings:
         return cls(
             state_path=state_path,
             browser_profiles_dir=browser_profiles_dir,
+            database_url=database_url,
+            celery_broker_url=celery_broker_url,
+            celery_result_backend_url=celery_result_backend_url,
             default_platform=platform,
         )
+
+
+def _required_setting(value: str | None, *, default: str, name: str) -> str:
+    """Return a non-blank setting value or its default."""
+    resolved = default if value is None else value.strip()
+    if not resolved:
+        raise ConfigurationError(f"{name} must not be blank")
+    return resolved
