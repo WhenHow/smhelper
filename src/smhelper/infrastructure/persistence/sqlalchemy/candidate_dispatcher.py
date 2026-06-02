@@ -109,7 +109,7 @@ class SqlAlchemyCandidateDispatcher:
                     continue
 
                 worker = session.get(WorkerNodeRecord, selected_session.node_id)
-                if worker is None:
+                if worker is None or not worker.online:
                     continue
 
                 dispatch_job_id = self.ids.new_id("job")
