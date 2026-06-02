@@ -64,6 +64,7 @@
 |       |   |       |-- accounts.py
 |       |   |       |-- base.py
 |       |   |       |-- candidate_dispatcher.py
+|       |   |       |-- candidate_reviewer.py
 |       |   |       |-- live.py
 |       |   |       |-- session.py
 |       |   |       `-- workers.py
@@ -171,6 +172,7 @@
     |   |   |-- test_account_entry_dispatcher.py
     |   |   |-- test_account_entry_planner.py
     |   |   |-- test_candidate_dispatcher.py
+    |   |   |-- test_candidate_reviewer.py
     |   |   |-- test_sqlalchemy_records.py
     |   |   `-- test_sqlalchemy_session.py
     |   `-- task_queue/

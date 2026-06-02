@@ -23,10 +23,23 @@ class CandidateDispatcher(Protocol):
         """Approve candidates and publish send jobs."""
 
 
+class CandidateReviewer(Protocol):
+    """Review service used by SQLAdmin non-dispatch actions."""
+
+    def reject(
+        self,
+        *,
+        candidate_ids: list[str],
+        reviewed_by: str,
+    ) -> list[str]:
+        """Reject pending candidates."""
+
+
 class CandidateQuestionAdmin(ModelView, model=CandidateQuestionRecord):
     """Review, edit and approve generated candidate questions."""
 
     candidate_dispatcher: ClassVar[CandidateDispatcher | None] = None
+    candidate_reviewer: ClassVar[CandidateReviewer | None] = None
     name_plural = "Candidate Questions"
     column_list: ClassVar[list[str]] = [
         "id",
@@ -57,6 +70,30 @@ class CandidateQuestionAdmin(ModelView, model=CandidateQuestionRecord):
             if self.candidate_dispatcher is None:
                 raise RuntimeError("candidate dispatcher is not configured")
             self.candidate_dispatcher.approve_and_dispatch(
+                candidate_ids=candidate_ids,
+                reviewed_by=reviewed_by,
+            )
+        return RedirectResponse(
+            request.headers.get("referer", "/admin/candidatequestion/list"),
+            status_code=302,
+        )
+
+    @action(
+        name="reject",
+        label="Reject",
+        confirmation_message="Reject selected candidates?",
+    )
+    async def reject_candidates(self, request: Request) -> RedirectResponse:
+        """Reject selected pending candidates without dispatching send jobs."""
+        raw_pks = request.query_params.get("pks", "")
+        candidate_ids = [
+            candidate_id for candidate_id in raw_pks.split(",") if candidate_id
+        ]
+        if candidate_ids:
+            reviewed_by = str(request.session.get("admin_user", "admin"))
+            if self.candidate_reviewer is None:
+                raise RuntimeError("candidate reviewer is not configured")
+            self.candidate_reviewer.reject(
                 candidate_ids=candidate_ids,
                 reviewed_by=reviewed_by,
             )

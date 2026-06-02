@@ -15,6 +15,9 @@ from smhelper.infrastructure.persistence.sqlalchemy.candidate_dispatcher import 
     SendCommentTaskPublisher,
     SqlAlchemyCandidateDispatcher,
 )
+from smhelper.infrastructure.persistence.sqlalchemy.candidate_reviewer import (
+    SqlAlchemyCandidateReviewer,
+)
 from smhelper.infrastructure.persistence.sqlalchemy.session import (
     create_engine_from_url,
     create_session_factory,
@@ -45,19 +48,25 @@ def create_app(
     session_factory = create_session_factory(app_engine)
     Base.metadata.create_all(app_engine)
     app.include_router(api_router)
+    resolved_clock = clock or SystemClock()
     app.state.candidate_dispatcher = SqlAlchemyCandidateDispatcher(
         session_factory=session_factory,
         ids=ids or UuidGenerator(),
-        clock=clock or SystemClock(),
+        clock=resolved_clock,
         send_account_policy=SendAccountPolicy(rng=Random()),
         browser_task_publisher=browser_task_publisher
         or _default_browser_task_publisher(settings),
+    )
+    app.state.candidate_reviewer = SqlAlchemyCandidateReviewer(
+        session_factory=session_factory,
+        clock=resolved_clock,
     )
     configure_admin(
         app=app,
         engine=app_engine,
         credentials=admin_credentials or AdminCredentials.from_env(),
         candidate_dispatcher=app.state.candidate_dispatcher,
+        candidate_reviewer=app.state.candidate_reviewer,
     )
     app.state.engine = app_engine
     return app
