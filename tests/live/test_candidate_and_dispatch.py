@@ -94,6 +94,28 @@ def test_candidate_approval_requires_non_blank_final_text() -> None:
         )
 
 
+def test_candidate_approval_rejects_forbidden_terms() -> None:
+    candidate = CandidateQuestion(
+        id="candidate-1",
+        live_task_id="live-1",
+        segment_id="segment-1",
+        question="Question?",
+        reason="reason",
+        risk_level="low",
+        raw_response="{}",
+        status=CandidateQuestionStatus.PENDING_REVIEW,
+        generated_at=datetime(2026, 6, 1, 12, 0, tzinfo=UTC),
+    )
+
+    with pytest.raises(InvalidCandidateQuestion, match="forbidden term"):
+        candidate.approve(
+            final_text="Can it repair sensitive skin?",
+            reviewed_by="operator",
+            reviewed_at=datetime(2026, 6, 1, 12, 1, tzinfo=UTC),
+            forbidden_terms=("Sensitive",),
+        )
+
+
 def test_dispatch_job_uses_approved_final_text() -> None:
     created_at = datetime(2026, 6, 1, 12, 2, tzinfo=UTC)
 

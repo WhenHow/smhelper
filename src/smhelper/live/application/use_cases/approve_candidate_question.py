@@ -35,6 +35,7 @@ class ApproveCandidateQuestionUseCase:
         final_text: str,
         reviewed_by: str,
         sessions: list[AccountLiveSession],
+        forbidden_terms: tuple[str, ...] = (),
     ) -> CandidateApprovalResult:
         """Approve the candidate and create a pending dispatch job."""
         now = self.clock.now()
@@ -42,6 +43,7 @@ class ApproveCandidateQuestionUseCase:
             final_text=final_text,
             reviewed_by=reviewed_by,
             reviewed_at=now,
+            forbidden_terms=forbidden_terms,
         )
         selected_session = self.send_account_policy.select_session(
             sessions=sessions,

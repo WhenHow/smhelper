@@ -15,8 +15,10 @@ from smhelper.live.domain.account_live_session import (
 from smhelper.live.domain.candidate_question import (
     CandidateQuestion,
     CandidateQuestionStatus,
+    InvalidCandidateQuestion,
 )
 from smhelper.live.domain.policies.send_account_policy import SendAccountPolicy
+import pytest
 
 
 def test_approve_candidate_question_creates_dispatch_job_for_waiting_session() -> None:
@@ -59,3 +61,40 @@ def test_approve_candidate_question_creates_dispatch_job_for_waiting_session() -
     assert result.dispatch_job.account_live_session_id == "session-1"
     assert result.dispatch_job.account_id == "account-1"
     assert result.dispatch_job.final_text == "Is this suitable for oily skin?"
+
+
+def test_approve_candidate_question_passes_forbidden_terms_to_domain_rule() -> None:
+    now = datetime(2026, 6, 1, 12, 1, tzinfo=UTC)
+    candidate = CandidateQuestion(
+        id="candidate-1",
+        live_task_id="live-1",
+        segment_id="segment-1",
+        question="Does this work for oily skin?",
+        reason="The segment mentions skin type.",
+        risk_level="low",
+        raw_response="{}",
+        status=CandidateQuestionStatus.PENDING_REVIEW,
+        generated_at=datetime(2026, 6, 1, 12, 0, tzinfo=UTC),
+    )
+    session = AccountLiveSession(
+        id="session-1",
+        live_task_id="live-1",
+        platform="xhs",
+        room_url="https://example.com/live/1",
+        account_id="account-1",
+        node_id="node-a",
+        status=AccountLiveSessionStatus.WAITING,
+    )
+
+    with pytest.raises(InvalidCandidateQuestion, match="forbidden term"):
+        ApproveCandidateQuestionUseCase(
+            clock=FixedClock(now),
+            ids=SequenceIdGenerator(["job-1"]),
+            send_account_policy=SendAccountPolicy(rng=Random(1)),
+        ).approve(
+            candidate=candidate,
+            final_text="Can it repair sensitive skin?",
+            reviewed_by="operator",
+            sessions=[session],
+            forbidden_terms=("Sensitive",),
+        )

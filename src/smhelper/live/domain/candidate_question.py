@@ -46,11 +46,20 @@ class CandidateQuestion:
         final_text: str,
         reviewed_by: str,
         reviewed_at: datetime,
+        forbidden_terms: tuple[str, ...] = (),
     ) -> CandidateQuestion:
         """Return an approved candidate while preserving the original LLM text."""
         normalized_final_text = final_text.strip()
         if not normalized_final_text:
             raise InvalidCandidateQuestion("approved final text must not be blank")
+        matched_term = _find_forbidden_term(
+            text=normalized_final_text,
+            forbidden_terms=forbidden_terms,
+        )
+        if matched_term is not None:
+            raise InvalidCandidateQuestion(
+                f"approved final text contains forbidden term: {matched_term}"
+            )
         return replace(
             self,
             status=CandidateQuestionStatus.APPROVED,
@@ -76,3 +85,17 @@ class CandidateQuestion:
             reviewed_at=reviewed_at,
             rejection_reason=reason.strip() or None,
         )
+
+
+def _find_forbidden_term(
+    *,
+    text: str,
+    forbidden_terms: tuple[str, ...],
+) -> str | None:
+    """Return the first configured forbidden term found in text."""
+    normalized_text = text.casefold()
+    for term in forbidden_terms:
+        normalized_term = term.strip()
+        if normalized_term and normalized_term.casefold() in normalized_text:
+            return normalized_term
+    return None
