@@ -411,3 +411,113 @@ def test_send_result_api_does_not_increment_send_count_on_failure(
         assert account.sends_today == 4
         assert account.cooldown_until is None
     engine.dispose()
+
+
+def test_send_result_api_rejects_mismatched_job_session_and_account(
+    tmp_path: Path,
+) -> None:
+    database_path = tmp_path / "smhelper.db"
+    engine = create_engine_from_url(f"sqlite+pysqlite:///{database_path}")
+    now = datetime(2026, 6, 2, 10, 0, tzinfo=UTC)
+    app = create_app(
+        engine=engine,
+        admin_credentials=AdminCredentials(
+            username="admin",
+            password="secret",
+            secret_key="test-secret",
+        ),
+        clock=FixedClock(now),
+        send_cooldown_seconds=300,
+    )
+    with Session(engine) as session:
+        session.add(
+            PlatformAccountRecord(
+                id="account-1",
+                platform="xhs",
+                display_name="Account 1",
+                enabled=True,
+                daily_send_limit=10,
+                sends_today=0,
+            )
+        )
+        session.add(
+            PlatformAccountRecord(
+                id="account-2",
+                platform="xhs",
+                display_name="Account 2",
+                enabled=True,
+                daily_send_limit=10,
+                sends_today=0,
+            )
+        )
+        session.add(
+            AccountLiveSessionRecord(
+                id="session-1",
+                live_task_id="live-1",
+                platform="xhs",
+                room_url="https://example.com/live/1",
+                account_id="account-1",
+                node_id="node-a",
+                status="sending",
+                active_slot_key="live-1:account-1",
+            )
+        )
+        session.add(
+            AccountLiveSessionRecord(
+                id="session-2",
+                live_task_id="live-1",
+                platform="xhs",
+                room_url="https://example.com/live/1",
+                account_id="account-2",
+                node_id="node-a",
+                status="waiting",
+                active_slot_key="live-1:account-2",
+            )
+        )
+        session.add(
+            DispatchJobRecord(
+                id="job-1",
+                candidate_question_id="candidate-1",
+                live_task_id="live-1",
+                account_live_session_id="session-1",
+                account_id="account-1",
+                final_text="Is this suitable for oily skin?",
+                status="running",
+                created_at=datetime(2026, 6, 1, 12, 0, tzinfo=UTC),
+            )
+        )
+        session.commit()
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/live/send-results",
+            json={
+                "dispatch_job_id": "job-1",
+                "session_id": "session-2",
+                "account_id": "account-2",
+                "status": "success",
+                "failure_reason": None,
+            },
+        )
+
+    assert response.status_code == 409
+    with Session(engine) as session:
+        job = session.get(DispatchJobRecord, "job-1")
+        original_session = session.get(AccountLiveSessionRecord, "session-1")
+        mismatched_session = session.get(AccountLiveSessionRecord, "session-2")
+        original_account = session.get(PlatformAccountRecord, "account-1")
+        mismatched_account = session.get(PlatformAccountRecord, "account-2")
+        attempts = session.query(SendAttemptRecord).all()
+        assert job is not None
+        assert job.status == "running"
+        assert job.finished_at is None
+        assert original_session is not None
+        assert original_session.status == "sending"
+        assert mismatched_session is not None
+        assert mismatched_session.status == "waiting"
+        assert original_account is not None
+        assert original_account.sends_today == 0
+        assert mismatched_account is not None
+        assert mismatched_account.sends_today == 0
+        assert attempts == []
+    engine.dispose()

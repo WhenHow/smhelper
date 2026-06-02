@@ -126,6 +126,14 @@ def report_send_result(
             raise HTTPException(status_code=404, detail="dispatch job not found")
         if session_record is None:
             raise HTTPException(status_code=404, detail="session not found")
+        if (
+            dispatch_job.account_live_session_id != report.session_id
+            or dispatch_job.account_id != report.account_id
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail="send result does not match dispatch job",
+            )
 
         normalized_status = "success" if report.status == "success" else "failed"
         db_session.add(
