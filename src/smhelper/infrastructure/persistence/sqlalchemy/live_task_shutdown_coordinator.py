@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Protocol
+from uuid import uuid4
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
@@ -12,6 +13,8 @@ from sqlalchemy.orm import Session, sessionmaker
 from smhelper.core.clock import Clock
 from smhelper.infrastructure.persistence.sqlalchemy.live import (
     AccountLiveSessionRecord,
+    DispatchJobRecord,
+    SendAttemptRecord,
 )
 from smhelper.infrastructure.persistence.sqlalchemy.workers import WorkerNodeRecord
 from smhelper.infrastructure.task_queue.celery.publisher import CloseSessionPayload
@@ -24,6 +27,7 @@ from smhelper.live.domain.policies.shutdown_policy import (
     CloseAction,
     LiveTaskShutdownPolicy,
 )
+from smhelper.live.domain.dispatch_job import DispatchJobStatus
 
 
 class CloseSessionTaskPublisher(Protocol):
@@ -76,6 +80,12 @@ class SqlAlchemyLiveTaskShutdownCoordinator:
                         reason=decision.reason,
                         closed_at=now,
                     )
+                    self._fail_running_dispatch_jobs(
+                        session=session,
+                        record=record,
+                        reason=decision.reason,
+                        failed_at=now,
+                    )
                     handled_session_ids.append(record.id)
                     continue
 
@@ -85,6 +95,12 @@ class SqlAlchemyLiveTaskShutdownCoordinator:
                         record=record,
                         reason="worker_not_found",
                         closed_at=now,
+                    )
+                    self._fail_running_dispatch_jobs(
+                        session=session,
+                        record=record,
+                        reason="worker_not_found",
+                        failed_at=now,
                     )
                     handled_session_ids.append(record.id)
                     continue
@@ -154,6 +170,37 @@ class SqlAlchemyLiveTaskShutdownCoordinator:
             account_id=record.account_id,
             status=record.status,
         )
+
+    @staticmethod
+    def _fail_running_dispatch_jobs(
+        *,
+        session: Session,
+        record: AccountLiveSessionRecord,
+        reason: str,
+        failed_at: datetime,
+    ) -> None:
+        running_jobs = session.scalars(
+            select(DispatchJobRecord).where(
+                DispatchJobRecord.account_live_session_id == record.id,
+                DispatchJobRecord.status == DispatchJobStatus.RUNNING.value,
+            )
+        ).all()
+        for job in running_jobs:
+            session.add(
+                SendAttemptRecord(
+                    id=f"attempt-{uuid4().hex}",
+                    dispatch_job_id=job.id,
+                    account_live_session_id=record.id,
+                    account_id=job.account_id,
+                    status="failed",
+                    success_detection="operation_completed",
+                    attempted_at=failed_at,
+                    failure_reason=reason,
+                )
+            )
+            job.status = DispatchJobStatus.FAILED.value
+            job.finished_at = failed_at
+            job.failure_reason = reason
 
     @staticmethod
     def _to_domain(record: AccountLiveSessionRecord) -> AccountLiveSession:
