@@ -141,6 +141,8 @@ def report_send_result(
         if (
             dispatch_job.account_live_session_id != report.session_id
             or dispatch_job.account_id != report.account_id
+            or session_record.account_id != dispatch_job.account_id
+            or session_record.live_task_id != dispatch_job.live_task_id
         ):
             raise HTTPException(
                 status_code=409,
