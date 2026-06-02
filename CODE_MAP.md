@@ -134,6 +134,7 @@
 |       |   |-- __init__.py
 |       |   `-- xhs/
 |       |       |-- __init__.py
+|       |       |-- worker_runtime.py
 |       |       `-- browser/
 |       |           |-- __init__.py
 |       |           |-- cloakbrowser_live_room.py
@@ -208,7 +209,8 @@
     |   `-- xhs/
     |       |-- test_cloakbrowser_live_room.py
     |       |-- test_live_room_operator.py
-    |       `-- test_stream_discovery.py
+    |       |-- test_stream_discovery.py
+    |       `-- test_worker_runtime.py
     |-- web/
     |   |-- test_account_storage_state_api.py
     |   |-- test_admin_app.py
