@@ -82,7 +82,9 @@
 |       |           |-- center_api_client.py
 |       |           |-- center_handler.py
 |       |           |-- center_publisher.py
+|       |           |-- center_runtime.py
 |       |           |-- center_tasks.py
+|       |           |-- center_worker.py
 |       |           |-- center_worker_runtime.py
 |       |           |-- node_handler.py
 |       |           |-- node_tasks.py
@@ -201,7 +203,9 @@
     |       |-- test_celery_publisher.py
     |       |-- test_center_api_client.py
     |       |-- test_center_publisher.py
+    |       |-- test_center_runtime.py
     |       |-- test_center_task_registration.py
+    |       |-- test_center_worker.py
     |       |-- test_center_worker_runtime.py
     |       |-- test_node_browser_task_handler.py
     |       |-- test_node_task_registration.py
