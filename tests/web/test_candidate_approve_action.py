@@ -13,6 +13,7 @@ from smhelper.infrastructure.persistence.sqlalchemy.live import (
     AccountLiveSessionRecord,
     CandidateQuestionRecord,
     DispatchJobRecord,
+    LiveTaskRecord,
 )
 from smhelper.infrastructure.persistence.sqlalchemy.session import (
     create_engine_from_url,
@@ -48,6 +49,17 @@ def test_sqladmin_candidate_approve_action_dispatches_send_job(tmp_path: Path) -
     )
     now = datetime(2026, 6, 2, 10, 0, tzinfo=UTC)
     with Session(engine) as session:
+        session.add(
+            LiveTaskRecord(
+                id="live-1",
+                platform="xhs",
+                room_url="https://example.com/live/1",
+                status="running",
+                segment_time_seconds=60,
+                created_at=now,
+                started_at=now,
+            )
+        )
         session.add(
             CandidateQuestionRecord(
                 id="candidate-1",

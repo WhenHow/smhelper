@@ -59,6 +59,8 @@ class SqlAlchemyAccountEntryPlanner:
             live_task = session.get(LiveTaskRecord, live_task_id)
             if live_task is None:
                 return []
+            if live_task.status != "running":
+                return []
             candidates = self._load_candidates(
                 session=session,
                 platform=live_task.platform,

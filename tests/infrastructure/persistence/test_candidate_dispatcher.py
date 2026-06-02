@@ -16,6 +16,7 @@ from smhelper.infrastructure.persistence.sqlalchemy.live import (
     AccountLiveSessionRecord,
     CandidateQuestionRecord,
     DispatchJobRecord,
+    LiveTaskRecord,
 )
 from smhelper.infrastructure.persistence.sqlalchemy.session import (
     create_engine_from_url,
@@ -43,6 +44,17 @@ def test_candidate_dispatcher_approves_candidate_creates_job_and_publishes_send(
     now = datetime(2026, 6, 2, 10, 0, tzinfo=UTC)
     publisher = FakeBrowserTaskPublisher()
     with Session(engine) as session:
+        session.add(
+            LiveTaskRecord(
+                id="live-1",
+                platform="xhs",
+                room_url="https://example.com/live/1",
+                status="running",
+                segment_time_seconds=60,
+                created_at=now,
+                started_at=now,
+            )
+        )
         session.add(
             CandidateQuestionRecord(
                 id="candidate-1",
@@ -154,4 +166,82 @@ def test_candidate_dispatcher_skips_candidate_without_final_text() -> None:
         candidate = session.get(CandidateQuestionRecord, "candidate-1")
         assert candidate is not None
         assert candidate.status == "pending_review"
+    engine.dispose()
+
+
+def test_candidate_dispatcher_skips_candidate_when_live_task_has_ended() -> None:
+    engine = create_engine_from_url("sqlite+pysqlite:///:memory:")
+    session_factory = create_session_factory(engine)
+    Base.metadata.create_all(engine)
+    now = datetime(2026, 6, 2, 10, 0, tzinfo=UTC)
+    publisher = FakeBrowserTaskPublisher()
+    with Session(engine) as session:
+        session.add(
+            LiveTaskRecord(
+                id="live-1",
+                platform="xhs",
+                room_url="https://example.com/live/1",
+                status="ended",
+                segment_time_seconds=60,
+                created_at=now,
+                ended_at=now,
+            )
+        )
+        session.add(
+            CandidateQuestionRecord(
+                id="candidate-1",
+                live_task_id="live-1",
+                segment_id="segment-1",
+                question="Does this work for oily skin?",
+                reason="The segment mentions skin type.",
+                risk_level="low",
+                raw_response="{}",
+                status="pending_review",
+                final_text="Is this suitable for oily skin?",
+                generated_at=now,
+            )
+        )
+        session.add(
+            AccountLiveSessionRecord(
+                id="session-1",
+                live_task_id="live-1",
+                platform="xhs",
+                room_url="https://example.com/live/1",
+                account_id="account-1",
+                node_id="node-a",
+                status="waiting",
+                active_slot_key="live-1:account-1",
+            )
+        )
+        session.add(
+            WorkerNodeRecord(
+                id="node-a",
+                queue_name="node.node-a.browser",
+                supported_platforms=["xhs"],
+                max_browser_sessions=10,
+                active_browser_sessions=1,
+                online=True,
+            )
+        )
+        session.commit()
+
+    dispatched = SqlAlchemyCandidateDispatcher(
+        session_factory=session_factory,
+        ids=SequenceIdGenerator(["job-1"]),
+        clock=FixedClock(now),
+        send_account_policy=SendAccountPolicy(rng=Random(1)),
+        browser_task_publisher=publisher,
+    ).approve_and_dispatch(candidate_ids=["candidate-1"], reviewed_by="admin")
+
+    assert dispatched == []
+    assert publisher.sent == []
+    with Session(engine) as session:
+        candidate = session.get(CandidateQuestionRecord, "candidate-1")
+        live_session = session.get(AccountLiveSessionRecord, "session-1")
+        jobs = session.query(DispatchJobRecord).all()
+        assert candidate is not None
+        assert candidate.status == "pending_review"
+        assert live_session is not None
+        assert live_session.status == "waiting"
+        assert jobs == []
     engine.dispose()

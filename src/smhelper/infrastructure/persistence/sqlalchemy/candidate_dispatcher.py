@@ -15,6 +15,7 @@ from smhelper.infrastructure.persistence.sqlalchemy.live import (
     AccountLiveSessionRecord,
     CandidateQuestionRecord,
     DispatchJobRecord,
+    LiveTaskRecord,
 )
 from smhelper.infrastructure.persistence.sqlalchemy.workers import WorkerNodeRecord
 from smhelper.infrastructure.task_queue.celery.publisher import SendCommentPayload
@@ -62,8 +63,14 @@ class SqlAlchemyCandidateDispatcher:
                     CandidateQuestionRecord.id.in_(candidate_ids)
                 )
             ).all()
+            running_live_task_ids = self._load_running_live_task_ids(
+                session=session,
+                live_task_ids={candidate.live_task_id for candidate in candidates},
+            )
             for candidate in candidates:
                 if candidate.status != "pending_review":
+                    continue
+                if candidate.live_task_id not in running_live_task_ids:
                     continue
                 final_text = (candidate.final_text or "").strip()
                 if not final_text:
@@ -120,6 +127,22 @@ class SqlAlchemyCandidateDispatcher:
                 payload=payload,
             )
         return dispatched_job_ids
+
+    @staticmethod
+    def _load_running_live_task_ids(
+        *,
+        session: Session,
+        live_task_ids: set[str],
+    ) -> set[str]:
+        if not live_task_ids:
+            return set()
+        records = session.scalars(
+            select(LiveTaskRecord.id).where(
+                LiveTaskRecord.id.in_(live_task_ids),
+                LiveTaskRecord.status == "running",
+            )
+        ).all()
+        return set(records)
 
     def _select_waiting_session(
         self,
