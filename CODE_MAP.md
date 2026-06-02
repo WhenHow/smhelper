@@ -136,6 +136,7 @@
 |       |       |-- __init__.py
 |       |       `-- browser/
 |       |           |-- __init__.py
+|       |           |-- live_room_operator.py
 |       |           |-- selectors.py
 |       |           `-- stream_discovery.py
 |       |-- web/
@@ -204,6 +205,7 @@
     |   `-- test_local_state.py
     |-- platforms/
     |   `-- xhs/
+    |       |-- test_live_room_operator.py
     |       `-- test_stream_discovery.py
     |-- web/
     |   |-- test_account_storage_state_api.py
