@@ -111,6 +111,7 @@ def report_session_status(
         )
         if session_record.active_slot_key is None:
             session_record.closed_at = now
+            session_record.send_started_at = None
         db_session.commit()
 
     _restart_session_if_needed(
