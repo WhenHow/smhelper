@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Protocol, cast
+from typing import Literal, Protocol, cast
 from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Request
@@ -47,7 +47,7 @@ class AccountSessionRestarter(Protocol):
 class SessionStatusReport(BaseModel):
     """Worker-reported account live session status."""
 
-    status: str
+    status: AccountLiveSessionStatus
     failure_reason: str | None = None
 
 
@@ -57,7 +57,7 @@ class SendResultReport(BaseModel):
     dispatch_job_id: str
     session_id: str
     account_id: str
-    status: str
+    status: Literal["success", "failed"]
     failure_reason: str | None = None
 
 
@@ -99,13 +99,14 @@ def report_session_status(
         if session_record.status in TERMINAL_SESSION_STATUS_VALUES:
             return {"status": "ignored"}
 
-        session_record.status = report.status
+        reported_status = report.status.value
+        session_record.status = reported_status
         session_record.failure_reason = report.failure_reason
         session_record.last_heartbeat_at = now
         session_record.active_slot_key = AccountLiveSessionRecord.build_active_slot_key(
             live_task_id=session_record.live_task_id,
             account_id=session_record.account_id,
-            status=report.status,
+            status=reported_status,
         )
         if session_record.active_slot_key is None:
             session_record.closed_at = now
@@ -114,7 +115,7 @@ def report_session_status(
     _restart_session_if_needed(
         request=request,
         session_id=session_id,
-        status=report.status,
+        status=reported_status,
     )
     return {"status": "ok"}
 
@@ -147,7 +148,7 @@ def report_send_result(
         if dispatch_job.status in {"success", "failed"}:
             return {"status": "ignored"}
 
-        normalized_status = "success" if report.status == "success" else "failed"
+        normalized_status = report.status
         db_session.add(
             SendAttemptRecord(
                 id=f"attempt-{uuid4().hex}",
