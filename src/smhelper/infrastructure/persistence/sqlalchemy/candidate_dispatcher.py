@@ -218,10 +218,19 @@ class SqlAlchemyCandidateDispatcher:
             records=waiting_records,
             now=now,
         )
+        workers_by_node_id = self._load_workers_by_node_id(
+            session=session,
+            records=waiting_records,
+        )
         domain_sessions = [
             self._to_domain(record)
             for record in waiting_records
             if record.account_id in available_account_ids
+            and (worker := workers_by_node_id.get(record.node_id)) is not None
+            and self._worker_can_handle_session(
+                worker=worker,
+                selected_session=record,
+            )
         ]
         try:
             selected = self.send_account_policy.select_session(
@@ -234,6 +243,22 @@ class SqlAlchemyCandidateDispatcher:
             (record for record in waiting_records if record.id == selected.id),
             None,
         )
+
+    @staticmethod
+    def _load_workers_by_node_id(
+        *,
+        session: Session,
+        records: Sequence[AccountLiveSessionRecord],
+    ) -> dict[str, WorkerNodeRecord]:
+        node_ids = {record.node_id for record in records}
+        if not node_ids:
+            return {}
+        return {
+            record.id: record
+            for record in session.scalars(
+                select(WorkerNodeRecord).where(WorkerNodeRecord.id.in_(node_ids))
+            ).all()
+        }
 
     @staticmethod
     def _load_available_account_ids(
