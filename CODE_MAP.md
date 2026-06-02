@@ -151,6 +151,7 @@
 |       |       `-- browser/
 |       |           |-- __init__.py
 |       |           |-- cloakbrowser_live_room.py
+|       |           |-- cloakbrowser_observer.py
 |       |           |-- live_room_operator.py
 |       |           |-- selectors.py
 |       |           `-- stream_discovery.py
@@ -232,6 +233,7 @@
     |   `-- xhs/
     |       |-- test_celery_worker.py
     |       |-- test_cloakbrowser_live_room.py
+    |       |-- test_cloakbrowser_observer.py
     |       |-- test_live_room_operator.py
     |       |-- test_stream_discovery.py
     |       `-- test_worker_runtime.py
