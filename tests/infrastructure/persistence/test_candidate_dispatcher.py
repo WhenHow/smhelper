@@ -144,7 +144,8 @@ def test_candidate_dispatcher_approves_candidate_creates_job_and_publishes_send(
         assert candidate.reviewed_by == "admin"
         assert candidate.reviewed_at == now.replace(tzinfo=None)
         assert job is not None
-        assert job.status == "pending"
+        assert job.status == "running"
+        assert job.started_at == now.replace(tzinfo=None)
         assert job.final_text == "Is this suitable for oily skin?"
         assert live_session is not None
         assert live_session.status == "sending"

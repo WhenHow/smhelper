@@ -128,8 +128,9 @@ class SqlAlchemyCandidateDispatcher:
                         account_live_session_id=selected_session.id,
                         account_id=selected_session.account_id,
                         final_text=final_text,
-                        status="pending",
+                        status="running",
                         created_at=now,
+                        started_at=now,
                     )
                 )
                 published_jobs.append(
