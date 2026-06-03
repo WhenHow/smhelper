@@ -44,6 +44,7 @@
 |       |   |   `-- litellm_question_generator.py
 |       |   |-- asr/
 |       |   |   |-- __init__.py
+|       |   |   |-- local_provider.py
 |       |   |   `-- provider_adapter.py
 |       |   |-- media/
 |       |   |   |-- __init__.py

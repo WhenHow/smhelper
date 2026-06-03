@@ -40,6 +40,15 @@ uv run smhelper web --database-url "mysql+pymysql://root:@127.0.0.1:3306/smhelpe
 
 中心 worker 负责直播观察、分段处理、ASR 和 LLM。启动前需要配置 ASR 和 LLM：
 
+```powershell
+$env:SMHELPER_ASR_PROVIDER_NAME = "local-dev"
+$env:SMHELPER_ASR_PROVIDER_CALLABLE = "smhelper.infrastructure.asr.local_provider:transcribe"
+$env:SMHELPER_LLM_MODEL = "<litellm-model>"
+$env:LITELLM_LOCAL_MODEL_COST_MAP = "True"
+```
+
+本地 ASR provider 会优先读取音频同目录同名 `.txt` 文件作为转写文本；没有 `.txt` 时返回明确的本地占位转写。LLM 仍按第一阶段要求通过 LiteLLM 调用。
+
 ```bash
 uv run celery -A smhelper.infrastructure.task_queue.celery.center_worker.celery_app worker -Q center.live -l info
 ```

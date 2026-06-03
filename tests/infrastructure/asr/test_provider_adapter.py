@@ -50,6 +50,46 @@ def test_load_callable_speech_to_text_provider_from_import_path(
     assert result.provider_name == "vendor-a"
 
 
+def test_loads_builtin_local_asr_provider_from_import_path(tmp_path: Path) -> None:
+    audio_path = tmp_path / "segment.wav"
+    transcript_path = tmp_path / "segment.txt"
+    audio_path.write_bytes(b"fake")
+    transcript_path.write_text("主播刚才提到了敏感肌和保湿。", encoding="utf-8")
+
+    provider = load_callable_speech_to_text_provider(
+        provider_name="local-dev",
+        import_path="smhelper.infrastructure.asr.local_provider:transcribe",
+    )
+
+    result = provider.transcribe(SpeechToTextRequest(audio_path=audio_path))
+
+    assert result.text == "主播刚才提到了敏感肌和保湿。"
+    assert result.provider_name == "local-dev"
+    assert result.raw_response == (
+        '{"source":"adjacent_text","path":"'
+        + str(transcript_path).replace("\\", "\\\\")
+        + '"}'
+    )
+
+
+def test_builtin_local_asr_provider_returns_placeholder_without_text_file(
+    tmp_path: Path,
+) -> None:
+    audio_path = tmp_path / "segment.wav"
+    audio_path.write_bytes(b"fake")
+
+    provider = load_callable_speech_to_text_provider(
+        provider_name="local-dev",
+        import_path="smhelper.infrastructure.asr.local_provider:transcribe",
+    )
+
+    result = provider.transcribe(SpeechToTextRequest(audio_path=audio_path))
+
+    assert result.text == "Local ASR placeholder for segment.wav."
+    assert result.provider_name == "local-dev"
+    assert result.raw_response == '{"source":"placeholder","audio":"segment.wav"}'
+
+
 def test_load_callable_speech_to_text_provider_rejects_invalid_import_path() -> None:
     with pytest.raises(ConfigurationError, match="ASR provider callable"):
         load_callable_speech_to_text_provider(
