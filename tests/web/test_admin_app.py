@@ -1,21 +1,32 @@
 from __future__ import annotations
 
 from asyncio import run
+from datetime import datetime
 
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 
+from smhelper.infrastructure.persistence.sqlalchemy.accounts import (
+    AccountAuthStateRecord,
+    PlatformAccountRecord,
+)
+from smhelper.infrastructure.persistence.sqlalchemy.live import LiveTaskRecord
 from smhelper.infrastructure.persistence.sqlalchemy.session import (
     create_engine_from_url,
 )
+from smhelper.infrastructure.persistence.sqlalchemy.workers import WorkerNodeRecord
 from smhelper.web.admin import AdminCredentials, SingleAdminAuth
-from smhelper.web.admin_views.accounts import AccountAuthStateAdmin
+from smhelper.web.admin_views.accounts import (
+    AccountAuthStateAdmin,
+    PlatformAccountAdmin,
+)
 from smhelper.web.admin_views.candidates import CandidateQuestionAdmin
 from smhelper.web.admin_views.dispatch_jobs import DispatchJobAdmin, SendAttemptAdmin
 from smhelper.web.admin_views.live_tasks import LiveTaskAdmin
 from smhelper.web.admin_views.segments import LiveSegmentAdmin, TranscriptAdmin
 from smhelper.web.admin_views.sessions import AccountLiveSessionAdmin
+from smhelper.web.admin_views.workers import WorkerNodeAdmin
 from smhelper.web.app import create_app
 import smhelper.web.app as web_app
 
@@ -57,6 +68,113 @@ def test_account_auth_state_admin_shows_metadata_without_raw_storage_state() -> 
         "failure_reason",
         "updated_at",
     ]
+
+
+def test_core_admin_forms_focus_on_operator_editable_fields() -> None:
+    assert PlatformAccountAdmin.form_columns == [
+        "id",
+        "platform",
+        "display_name",
+        "enabled",
+        "daily_send_limit",
+        "sends_today",
+        "cooldown_until",
+    ]
+    assert AccountAuthStateAdmin.form_columns == [
+        "account_id",
+        "platform",
+        "status",
+        "storage_state_path",
+        "failure_reason",
+        "updated_at",
+    ]
+    assert WorkerNodeAdmin.form_columns == [
+        "id",
+        "queue_name",
+        "supported_platforms",
+        "max_browser_sessions",
+        "active_browser_sessions",
+        "online",
+        "last_heartbeat_at",
+    ]
+    assert LiveTaskAdmin.form_columns == [
+        "id",
+        "title",
+        "platform",
+        "room_url",
+        "status",
+        "product_context",
+        "task_context",
+        "segment_time_seconds",
+    ]
+
+
+def test_account_admin_fills_create_defaults() -> None:
+    account = PlatformAccountRecord(
+        id="account-1",
+        platform="",
+        display_name="Account 1",
+        enabled=None,
+        daily_send_limit=None,
+        sends_today=None,
+    )
+    auth_state = AccountAuthStateRecord(
+        account_id="account-1",
+        platform="",
+        status="",
+        storage_state_path="data/auth/account-1/storage_state.json",
+    )
+
+    run(PlatformAccountAdmin.on_model_change(object(), {}, account, True, object()))
+    run(AccountAuthStateAdmin.on_model_change(object(), {}, auth_state, True, object()))
+
+    assert account.platform == "xhs"
+    assert account.enabled is True
+    assert account.daily_send_limit == 20
+    assert account.sends_today == 0
+    assert auth_state.platform == "xhs"
+    assert auth_state.status == "valid"
+
+
+def test_worker_node_admin_fills_create_defaults() -> None:
+    worker = WorkerNodeRecord(
+        id="node-1",
+        queue_name="",
+        supported_platforms=None,
+        max_browser_sessions=None,
+        active_browser_sessions=None,
+        online=None,
+    )
+
+    run(WorkerNodeAdmin.on_model_change(object(), {}, worker, True, object()))
+
+    assert worker.queue_name == "node.node-1.browser"
+    assert worker.supported_platforms == ["xhs"]
+    assert worker.max_browser_sessions == 1
+    assert worker.active_browser_sessions == 0
+    assert worker.online is True
+
+
+def test_live_task_admin_fills_create_defaults() -> None:
+    live_task = LiveTaskRecord(
+        id="live-1",
+        platform="",
+        room_url="https://www.xiaohongshu.com/livestream/1",
+        status="",
+        product_context=None,
+        task_context=None,
+        segment_time_seconds=None,
+        created_at=None,
+    )
+
+    run(LiveTaskAdmin.on_model_change(object(), {}, live_task, True, object()))
+
+    assert live_task.platform == "xhs"
+    assert live_task.status == "pending"
+    assert live_task.product_context == ""
+    assert live_task.task_context == ""
+    assert live_task.segment_time_seconds == 60
+    assert isinstance(live_task.created_at, datetime)
 
 
 def test_candidate_question_admin_shows_review_context_and_outcome() -> None:

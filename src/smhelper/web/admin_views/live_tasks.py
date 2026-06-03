@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import ClassVar, Protocol
 
 from sqladmin import ModelView, action
@@ -32,6 +33,16 @@ class LiveTaskAdmin(ModelView, model=LiveTaskRecord):
     observer_publisher: ClassVar[LiveTaskObserverPublisher | None] = None
     center_queue_name: ClassVar[str] = "center.live"
     name_plural = "Live Tasks"
+    form_columns: ClassVar[list[str]] = [
+        "id",
+        "title",
+        "platform",
+        "room_url",
+        "status",
+        "product_context",
+        "task_context",
+        "segment_time_seconds",
+    ]
     column_list: ClassVar[list[str]] = [
         "id",
         "title",
@@ -48,6 +59,29 @@ class LiveTaskAdmin(ModelView, model=LiveTaskRecord):
         "failure_reason",
     ]
     column_searchable_list: ClassVar[list[str]] = ["id", "room_url"]
+
+    async def on_model_change(
+        self,
+        data: dict[str, object],
+        model: object,
+        is_created: bool,
+        request: Request,
+    ) -> None:
+        """Fill defaults needed for manually created first-phase live tasks."""
+        if not is_created or not isinstance(model, LiveTaskRecord):
+            return
+        if not _has_text(model.platform):
+            model.platform = "xhs"
+        if not _has_text(model.status):
+            model.status = "pending"
+        if model.product_context is None:
+            model.product_context = ""
+        if model.task_context is None:
+            model.task_context = ""
+        if model.segment_time_seconds is None:
+            model.segment_time_seconds = 60
+        if model.created_at is None:
+            model.created_at = datetime.now(UTC)
 
     @action(
         name="observe",
@@ -72,3 +106,8 @@ class LiveTaskAdmin(ModelView, model=LiveTaskRecord):
             request.headers.get("referer", "/admin/livetask/list"),
             status_code=302,
         )
+
+
+def _has_text(value: object) -> bool:
+    """Return whether a value contains non-whitespace text."""
+    return isinstance(value, str) and bool(value.strip())
