@@ -110,6 +110,13 @@ def live_doctor(ctx: click.Context, database_url: str | None) -> None:
     show_default=True,
     type=click.IntRange(1),
 )
+@click.option(
+    "--with-review-demo",
+    is_flag=True,
+    help=(
+        "Also create local demo candidate/session data for testing SQLAdmin approval."
+    ),
+)
 def live_seed_dev(
     database_url: str | None,
     room_url: str,
@@ -118,6 +125,7 @@ def live_seed_dev(
     storage_state_path: str,
     node_id: str,
     max_browser_sessions: int,
+    with_review_demo: bool,
 ) -> None:
     """Create or update minimum development data for local live testing."""
     from smhelper.infrastructure.persistence.sqlalchemy.live_seed_dev import (
@@ -132,14 +140,20 @@ def live_seed_dev(
         storage_state_path=storage_state_path,
         node_id=node_id,
         max_browser_sessions=max_browser_sessions,
+        with_review_demo=with_review_demo,
     )
-    click.echo(
+    message = (
         "Seeded live dev setup: "
         f"live_task={result.live_task_id} "
         f"account={result.account_id} "
         f"node={result.node_id} "
         f"queue={result.queue_name}"
     )
+    if result.review_demo_candidate_id is not None:
+        message += f" review_demo_candidate={result.review_demo_candidate_id}"
+    if result.review_demo_session_id is not None:
+        message += f" review_demo_session={result.review_demo_session_id}"
+    click.echo(message)
 
 
 live.add_command(live_seed_dev)

@@ -14,6 +14,10 @@ from smhelper.infrastructure.persistence.sqlalchemy.accounts import (
     PlatformAccountRecord,
 )
 from smhelper.infrastructure.persistence.sqlalchemy.live import LiveTaskRecord
+from smhelper.infrastructure.persistence.sqlalchemy.live import (
+    AccountLiveSessionRecord,
+    CandidateQuestionRecord,
+)
 from smhelper.infrastructure.persistence.sqlalchemy.schema import create_database_schema
 from smhelper.infrastructure.persistence.sqlalchemy.workers import WorkerNodeRecord
 from smhelper import main
@@ -223,6 +227,54 @@ def test_live_seed_dev_creates_minimum_runtime_setup(tmp_path: Path) -> None:
     assert "[OK] live task setup" in doctor_result.output
     assert "[OK] account setup" in doctor_result.output
     assert "[OK] worker setup" in doctor_result.output
+
+
+def test_live_seed_dev_can_create_review_demo_data(tmp_path: Path) -> None:
+    database_url = _sqlite_url(tmp_path / "seed-dev-review-demo.db")
+
+    result = CliRunner().invoke(
+        main,
+        [
+            "live",
+            "seed-dev",
+            "--database-url",
+            database_url,
+            "--room-url",
+            "https://www.xiaohongshu.com/livestream/1",
+            "--account-id",
+            "account-1",
+            "--storage-state-path",
+            "data/auth/account-1/storage_state.json",
+            "--node-id",
+            "node-1",
+            "--with-review-demo",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "review_demo_candidate=candidate-demo-1" in result.output
+    assert "review_demo_session=session-demo-1" in result.output
+
+    engine = _sqlite_engine(database_url)
+    try:
+        with Session(engine) as session:
+            live_task = session.get(LiveTaskRecord, "live-1")
+            candidate = session.get(CandidateQuestionRecord, "candidate-demo-1")
+            live_session = session.get(AccountLiveSessionRecord, "session-demo-1")
+            assert live_task is not None
+            assert live_task.status == "running"
+            assert candidate is not None
+            assert candidate.live_task_id == "live-1"
+            assert candidate.status == "pending_review"
+            assert candidate.final_text == "Is this product suitable for oily skin?"
+            assert live_session is not None
+            assert live_session.live_task_id == "live-1"
+            assert live_session.account_id == "account-1"
+            assert live_session.node_id == "node-1"
+            assert live_session.status == "waiting"
+            assert live_session.active_slot_key == "live-1:account-1"
+    finally:
+        engine.dispose()
 
 
 def test_live_seed_dev_updates_existing_runtime_setup(tmp_path: Path) -> None:

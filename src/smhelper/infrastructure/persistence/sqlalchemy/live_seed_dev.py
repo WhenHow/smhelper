@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from sqlalchemy import Engine
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from smhelper.core.config import RuntimeSettings
@@ -13,7 +14,11 @@ from smhelper.infrastructure.persistence.sqlalchemy.accounts import (
     AccountAuthStateRecord,
     PlatformAccountRecord,
 )
-from smhelper.infrastructure.persistence.sqlalchemy.live import LiveTaskRecord
+from smhelper.infrastructure.persistence.sqlalchemy.live import (
+    AccountLiveSessionRecord,
+    CandidateQuestionRecord,
+    LiveTaskRecord,
+)
 from smhelper.infrastructure.persistence.sqlalchemy.schema import create_database_schema
 from smhelper.infrastructure.persistence.sqlalchemy.session import (
     create_engine_from_url,
@@ -29,6 +34,8 @@ class LiveDevSeedResult:
     account_id: str
     node_id: str
     queue_name: str
+    review_demo_candidate_id: str | None = None
+    review_demo_session_id: str | None = None
 
 
 def seed_live_dev_setup(
@@ -40,6 +47,7 @@ def seed_live_dev_setup(
     account_id: str = "account-1",
     node_id: str = "node-1",
     max_browser_sessions: int = 1,
+    with_review_demo: bool = False,
     engine: Engine | None = None,
 ) -> LiveDevSeedResult:
     """Create or update the minimum records needed to test the live flow locally."""
@@ -76,12 +84,34 @@ def seed_live_dev_setup(
                 queue_name=queue_name,
                 max_browser_sessions=max_browser_sessions,
             )
+            review_demo_candidate_id: str | None = None
+            review_demo_session_id: str | None = None
+            if with_review_demo:
+                _mark_live_task_running_for_review_demo(
+                    session,
+                    live_task_id=live_task_id,
+                    stream_url="dev-review-demo-stream",
+                )
+                review_demo_session_id = _upsert_review_demo_session(
+                    session,
+                    live_task_id=live_task_id,
+                    platform=settings.default_platform,
+                    room_url=room_url,
+                    account_id=account_id,
+                    node_id=node_id,
+                )
+                review_demo_candidate_id = _upsert_review_demo_candidate(
+                    session,
+                    live_task_id=live_task_id,
+                )
             session.commit()
         return LiveDevSeedResult(
             live_task_id=live_task_id,
             account_id=account_id,
             node_id=node_id,
             queue_name=queue_name,
+            review_demo_candidate_id=review_demo_candidate_id,
+            review_demo_session_id=review_demo_session_id,
         )
     finally:
         if own_engine:
@@ -196,3 +226,117 @@ def _upsert_worker(
     worker.max_browser_sessions = max_browser_sessions
     worker.active_browser_sessions = 0
     worker.online = True
+
+
+def _mark_live_task_running_for_review_demo(
+    session: Session,
+    *,
+    live_task_id: str,
+    stream_url: str,
+) -> None:
+    live_task = session.get(LiveTaskRecord, live_task_id)
+    if live_task is None:
+        return
+    live_task.status = "running"
+    live_task.stream_url = stream_url
+    live_task.started_at = live_task.started_at or datetime.now(UTC)
+
+
+def _upsert_review_demo_session(
+    session: Session,
+    *,
+    live_task_id: str,
+    platform: str,
+    room_url: str,
+    account_id: str,
+    node_id: str,
+) -> str | None:
+    session_id = "session-demo-1"
+    active_slot_key = AccountLiveSessionRecord.build_active_slot_key(
+        live_task_id=live_task_id,
+        account_id=account_id,
+        status="waiting",
+    )
+    existing_active_session = session.scalars(
+        select(AccountLiveSessionRecord).where(
+            AccountLiveSessionRecord.active_slot_key == active_slot_key
+        )
+    ).first()
+    if existing_active_session is not None and existing_active_session.id != session_id:
+        return None
+
+    live_session = session.get(AccountLiveSessionRecord, session_id)
+    if live_session is None:
+        session.add(
+            AccountLiveSessionRecord(
+                id=session_id,
+                live_task_id=live_task_id,
+                platform=platform,
+                room_url=room_url,
+                account_id=account_id,
+                node_id=node_id,
+                status="waiting",
+                active_slot_key=active_slot_key,
+                opened_at=datetime.now(UTC),
+                restart_count=0,
+            )
+        )
+        return session_id
+
+    live_session.live_task_id = live_task_id
+    live_session.platform = platform
+    live_session.room_url = room_url
+    live_session.account_id = account_id
+    live_session.node_id = node_id
+    live_session.status = "waiting"
+    live_session.active_slot_key = active_slot_key
+    live_session.failure_reason = None
+    live_session.closed_at = None
+    live_session.send_started_at = None
+    return session_id
+
+
+def _upsert_review_demo_candidate(
+    session: Session,
+    *,
+    live_task_id: str,
+) -> str:
+    candidate_id = "candidate-demo-1"
+    candidate = session.get(CandidateQuestionRecord, candidate_id)
+    if candidate is None:
+        session.add(
+            CandidateQuestionRecord(
+                id=candidate_id,
+                live_task_id=live_task_id,
+                segment_id="segment-demo-1",
+                question="Is this product suitable for oily skin?",
+                reason="Development review demo candidate.",
+                risk_level="low",
+                raw_response=(
+                    '{"question":"Is this product suitable for oily skin?",'
+                    '"reason":"Development review demo candidate.",'
+                    '"risk_level":"low"}'
+                ),
+                status="pending_review",
+                generated_at=datetime.now(UTC),
+                final_text="Is this product suitable for oily skin?",
+            )
+        )
+        return candidate_id
+
+    candidate.live_task_id = live_task_id
+    candidate.segment_id = "segment-demo-1"
+    candidate.question = "Is this product suitable for oily skin?"
+    candidate.reason = "Development review demo candidate."
+    candidate.risk_level = "low"
+    candidate.raw_response = (
+        '{"question":"Is this product suitable for oily skin?",'
+        '"reason":"Development review demo candidate.",'
+        '"risk_level":"low"}'
+    )
+    candidate.status = "pending_review"
+    candidate.final_text = "Is this product suitable for oily skin?"
+    candidate.reviewed_by = None
+    candidate.reviewed_at = None
+    candidate.rejection_reason = None
+    return candidate_id
