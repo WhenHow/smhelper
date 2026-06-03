@@ -18,7 +18,6 @@ from smhelper.infrastructure.persistence.sqlalchemy.account_entry_dispatcher imp
 from smhelper.infrastructure.persistence.sqlalchemy.account_session_restarter import (
     SqlAlchemyAccountSessionRestarter,
 )
-from smhelper.infrastructure.persistence.sqlalchemy.base import Base
 from smhelper.infrastructure.persistence.sqlalchemy.candidate_dispatcher import (
     SendCommentTaskPublisher,
     SqlAlchemyCandidateDispatcher,
@@ -30,6 +29,7 @@ from smhelper.infrastructure.persistence.sqlalchemy.session import (
     create_engine_from_url,
     create_session_factory,
 )
+from smhelper.infrastructure.persistence.sqlalchemy.schema import create_database_schema
 from smhelper.infrastructure.task_queue.celery.app import create_celery_app
 from smhelper.infrastructure.task_queue.celery.center_publisher import (
     CenterTaskPublisher as CeleryCenterTaskPublisher,
@@ -85,7 +85,7 @@ def create_app(
         engine if engine is not None else create_engine_from_url(resolved_database_url)
     )
     session_factory = create_session_factory(app_engine)
-    Base.metadata.create_all(app_engine)
+    create_database_schema(engine=app_engine)
     app.include_router(api_router)
     resolved_clock = clock or SystemClock()
     resolved_ids = ids or UuidGenerator()

@@ -1,0 +1,44 @@
+# smhelper
+
+自媒体运营助手。第一阶段聚焦小红书直播助手：中心节点监听直播间、录制与处理分段、生成候选问题；远端节点负责账号浏览器操作。
+
+## 本地开发启动
+
+默认配置：
+
+- MySQL: `mysql+pymysql://root:@127.0.0.1:3306/smhelper`
+- Redis broker: `redis://:tbui-666@127.0.0.1:6379/0`
+- Redis result backend: `redis://:tbui-666@127.0.0.1:6379/1`
+
+`smhelper` 数据库需要先存在；`db init` 只创建表，不创建 MySQL database。
+
+```bash
+uv sync
+uv run smhelper db init
+uv run smhelper web --host 127.0.0.1 --port 8000
+```
+
+启动后访问 `http://127.0.0.1:8000/admin` 查看 SQLAdmin 后台。
+
+如需显式指定数据库：
+
+```bash
+uv run smhelper db init --database-url "mysql+pymysql://root:@127.0.0.1:3306/smhelper"
+uv run smhelper web --database-url "mysql+pymysql://root:@127.0.0.1:3306/smhelper"
+```
+
+## Worker 入口
+
+中心 worker 负责直播观察、分段处理、ASR 和 LLM。启动前需要配置 ASR 和 LLM：
+
+```bash
+uv run celery -A smhelper.infrastructure.task_queue.celery.center_worker.celery_app worker -Q center.live -l info
+```
+
+小红书远端操作节点负责 CloakBrowser 入场、保持会话、发送留言和回传结果：
+
+```bash
+uv run celery -A smhelper.platforms.xhs.celery_worker.celery_app worker -Q node.<node_id>.browser -l info
+```
+
+第一阶段旧的 `live-assistant` CLI 只用于可行性验证，正式链路以后以 Web 后台、中心 worker 和远端 worker 为准。

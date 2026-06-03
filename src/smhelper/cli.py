@@ -41,5 +41,28 @@ def web(host: str, port: int, database_url: str | None) -> None:
     uvicorn.run(app, host=host, port=port)
 
 
+@click.group()
+def db() -> None:
+    """Database maintenance commands."""
+
+
+@click.command(name="init")
+@click.option(
+    "--database-url",
+    default=None,
+    help="SQLAlchemy database URL. Defaults to SMHELPER_DATABASE_URL.",
+)
+def init_database(database_url: str | None) -> None:
+    """Create the configured database tables if they do not exist."""
+    from smhelper.infrastructure.persistence.sqlalchemy.schema import (
+        create_database_schema,
+    )
+
+    table_names = create_database_schema(database_url=database_url)
+    click.echo(f"Initialized database schema with {len(table_names)} table(s).")
+
+
+db.add_command(init_database)
 main.add_command(create_live_assistant_cli(), name="live-assistant")
+main.add_command(db, name="db")
 main.add_command(web, name="web")
