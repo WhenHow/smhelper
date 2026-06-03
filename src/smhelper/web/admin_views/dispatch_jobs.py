@@ -47,5 +47,6 @@ class SendAttemptAdmin(ModelView, model=SendAttemptRecord):
         "success_detection",
         "attempted_at",
         "failure_reason",
+        "page_snapshot_path",
     ]
     column_searchable_list: ClassVar[list[str]] = ["id", "dispatch_job_id"]

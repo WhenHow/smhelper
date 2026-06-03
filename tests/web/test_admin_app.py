@@ -12,7 +12,7 @@ from smhelper.infrastructure.persistence.sqlalchemy.session import (
 from smhelper.web.admin import AdminCredentials, SingleAdminAuth
 from smhelper.web.admin_views.accounts import AccountAuthStateAdmin
 from smhelper.web.admin_views.candidates import CandidateQuestionAdmin
-from smhelper.web.admin_views.dispatch_jobs import DispatchJobAdmin
+from smhelper.web.admin_views.dispatch_jobs import DispatchJobAdmin, SendAttemptAdmin
 from smhelper.web.app import create_app
 import smhelper.web.app as web_app
 
@@ -83,6 +83,20 @@ def test_dispatch_job_admin_shows_final_text_and_send_status() -> None:
         "started_at",
         "finished_at",
         "failure_reason",
+    ]
+
+
+def test_send_attempt_admin_shows_page_snapshot_for_failed_send_audit() -> None:
+    assert SendAttemptAdmin.column_list == [
+        "id",
+        "dispatch_job_id",
+        "account_live_session_id",
+        "account_id",
+        "status",
+        "success_detection",
+        "attempted_at",
+        "failure_reason",
+        "page_snapshot_path",
     ]
 
 
