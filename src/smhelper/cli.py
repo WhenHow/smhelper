@@ -63,6 +63,34 @@ def init_database(database_url: str | None) -> None:
 
 
 db.add_command(init_database)
+
+
+@click.group()
+def live() -> None:
+    """Live assistant runtime commands."""
+
+
+@click.command(name="doctor")
+@click.option(
+    "--database-url",
+    default=None,
+    help="SQLAlchemy database URL. Defaults to SMHELPER_DATABASE_URL.",
+)
+@click.pass_context
+def live_doctor(ctx: click.Context, database_url: str | None) -> None:
+    """Check whether the first-phase live runtime is ready to test."""
+    from smhelper.infrastructure.persistence.sqlalchemy.live_doctor import (
+        run_live_doctor,
+    )
+
+    report = run_live_doctor(database_url=database_url)
+    click.echo(report.render())
+    if report.has_failures:
+        ctx.exit(1)
+
+
+live.add_command(live_doctor)
 main.add_command(create_live_assistant_cli(), name="live-assistant")
 main.add_command(db, name="db")
+main.add_command(live, name="live")
 main.add_command(web, name="web")
