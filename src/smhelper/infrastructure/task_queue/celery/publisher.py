@@ -6,6 +6,7 @@ from dataclasses import asdict, dataclass
 from typing import Protocol
 
 from smhelper.infrastructure.task_queue.celery.tasks import (
+    CHECK_SESSION_TASK,
     CLOSE_SESSION_TASK,
     ENTER_LIVE_ROOM_TASK,
     SEND_COMMENT_TASK,
@@ -68,6 +69,17 @@ class CloseSessionPayload:
 
 
 @dataclass(frozen=True, slots=True)
+class CheckSessionPayload:
+    """Payload for asking a node to verify one open browser session."""
+
+    session_id: str
+
+    def to_kwargs(self) -> dict[str, str]:
+        """Serialize the payload for Celery JSON transport."""
+        return asdict(self)
+
+
+@dataclass(frozen=True, slots=True)
 class BrowserTaskPublisher:
     """Publishes browser automation tasks to node-specific Celery queues."""
 
@@ -110,6 +122,19 @@ class BrowserTaskPublisher:
         """Publish a close-session task."""
         self.celery_app.send_task(
             CLOSE_SESSION_TASK,
+            kwargs=payload.to_kwargs(),
+            queue=queue_name,
+        )
+
+    def check_session(
+        self,
+        *,
+        queue_name: str,
+        payload: CheckSessionPayload,
+    ) -> None:
+        """Publish a session-health check task."""
+        self.celery_app.send_task(
+            CHECK_SESSION_TASK,
             kwargs=payload.to_kwargs(),
             queue=queue_name,
         )

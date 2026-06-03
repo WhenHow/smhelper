@@ -6,11 +6,13 @@ from collections.abc import Callable
 from typing import Protocol
 
 from smhelper.infrastructure.task_queue.celery.publisher import (
+    CheckSessionPayload,
     CloseSessionPayload,
     EnterLiveRoomPayload,
     SendCommentPayload,
 )
 from smhelper.infrastructure.task_queue.celery.tasks import (
+    CHECK_SESSION_TASK,
     CLOSE_SESSION_TASK,
     ENTER_LIVE_ROOM_TASK,
     SEND_COMMENT_TASK,
@@ -36,6 +38,9 @@ class NodeTaskHandler(Protocol):
 
     def send_comment(self, payload: SendCommentPayload) -> None:
         """Handle a send-comment task."""
+
+    def check_session(self, payload: CheckSessionPayload) -> None:
+        """Handle a session-health check task."""
 
     def close_session(self, payload: CloseSessionPayload) -> None:
         """Handle a close-session task."""
@@ -83,6 +88,10 @@ def register_node_browser_tasks(
                 final_text=final_text,
             )
         )
+
+    @app.task(name=CHECK_SESSION_TASK)
+    def check_session(*, session_id: str) -> None:
+        handler.check_session(CheckSessionPayload(session_id=session_id))
 
     @app.task(name=CLOSE_SESSION_TASK)
     def close_session(*, session_id: str, reason: str) -> None:

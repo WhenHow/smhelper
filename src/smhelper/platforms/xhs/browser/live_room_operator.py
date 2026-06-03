@@ -15,6 +15,9 @@ class XhsLiveRoomSession(Protocol):
     def send_comment(self, text: str) -> None:
         """Send one comment from this already-open live-room page."""
 
+    def check_health(self) -> None:
+        """Raise when the live-room page session is not usable."""
+
     def close(self) -> None:
         """Close this live-room browser session."""
 
@@ -65,6 +68,18 @@ class XhsLiveRoomBrowserOperator:
 
         try:
             live_session.send_comment(final_text)
+        except Exception as exc:
+            return BrowserActionResult(success=False, failure_reason=str(exc))
+        return BrowserActionResult(success=True)
+
+    def check_session(self, *, session_id: str) -> BrowserActionResult:
+        """Check whether an existing live-room session is still usable."""
+        live_session = self._sessions.get(session_id)
+        if live_session is None:
+            return _missing_session_result(session_id)
+
+        try:
+            live_session.check_health()
         except Exception as exc:
             return BrowserActionResult(success=False, failure_reason=str(exc))
         return BrowserActionResult(success=True)

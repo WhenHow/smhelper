@@ -21,6 +21,9 @@ from smhelper.infrastructure.task_queue.celery.publisher import (
     EnterLiveRoomPayload,
 )
 from smhelper.infrastructure.task_queue.celery.tasks import ENTER_LIVE_ROOM_TASK
+from smhelper.infrastructure.task_queue.celery.tasks import CHECK_SESSION_TASK
+from smhelper.infrastructure.task_queue.celery.tasks import CLOSE_SESSION_TASK
+from smhelper.infrastructure.task_queue.celery.tasks import SEND_COMMENT_TASK
 
 
 @dataclass
@@ -168,9 +171,10 @@ def test_build_node_worker_runtime_creates_http_center_client_from_settings(
     assert runtime.handler.center_api.base_url == "https://center.example"
     assert runtime.handler.center_api.storage_state_dir == tmp_path / "states"
     assert set(celery_app.tasks) == {
-        "smhelper.node.enter_live_room",
-        "smhelper.node.send_comment",
-        "smhelper.node.close_session",
+        ENTER_LIVE_ROOM_TASK,
+        SEND_COMMENT_TASK,
+        CHECK_SESSION_TASK,
+        CLOSE_SESSION_TASK,
     }
 
 

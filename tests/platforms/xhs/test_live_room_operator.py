@@ -12,9 +12,13 @@ from smhelper.platforms.xhs.browser.live_room_operator import (
 class FakeLiveRoomSession:
     sent_comments: list[str] = field(default_factory=list)
     closed: bool = False
+    health_checks: int = 0
 
     def send_comment(self, text: str) -> None:
         self.sent_comments.append(text)
+
+    def check_health(self) -> None:
+        self.health_checks += 1
 
     def close(self) -> None:
         self.closed = True
@@ -24,6 +28,9 @@ class FakeLiveRoomSession:
 class FailingLiveRoomSession:
     def send_comment(self, text: str) -> None:
         raise RuntimeError(f"cannot send {text}")
+
+    def check_health(self) -> None:
+        raise RuntimeError("page closed")
 
     def close(self) -> None:
         raise RuntimeError("cannot close")
@@ -73,10 +80,12 @@ def test_xhs_operator_enters_room_and_keeps_session_for_send_and_close(
         session_id="session-1",
         final_text="Is this suitable for oily skin?",
     )
+    check_result = operator.check_session(session_id="session-1")
     close_result = operator.close_session(session_id="session-1")
 
     assert enter_result.success is True
     assert send_result.success is True
+    assert check_result.success is True
     assert close_result.success is True
     assert manager.opened == [
         (
@@ -86,6 +95,7 @@ def test_xhs_operator_enters_room_and_keeps_session_for_send_and_close(
         )
     ]
     assert live_session.sent_comments == ["Is this suitable for oily skin?"]
+    assert live_session.health_checks == 1
     assert live_session.closed is True
 
 
@@ -114,6 +124,17 @@ def test_xhs_operator_reports_close_failure_when_session_is_not_open() -> None:
     assert result.failure_reason == "live room session is not open: missing-session"
 
 
+def test_xhs_operator_reports_check_failure_when_session_is_not_open() -> None:
+    operator = XhsLiveRoomBrowserOperator(
+        session_manager=FakeSessionManager(session=FakeLiveRoomSession())
+    )
+
+    result = operator.check_session(session_id="missing-session")
+
+    assert result.success is False
+    assert result.failure_reason == "live room session is not open: missing-session"
+
+
 def test_xhs_operator_maps_browser_exceptions_to_action_failures(
     tmp_path: Path,
 ) -> None:
@@ -135,11 +156,14 @@ def test_xhs_operator_maps_browser_exceptions_to_action_failures(
     )
 
     send_failed = operator.send_comment(session_id="session-2", final_text="hello")
+    check_failed = operator.check_session(session_id="session-2")
     close_failed = operator.close_session(session_id="session-2")
 
     assert enter_failed.success is False
     assert enter_failed.failure_reason == "cannot open session-1"
     assert send_failed.success is False
     assert send_failed.failure_reason == "cannot send hello"
+    assert check_failed.success is False
+    assert check_failed.failure_reason == "page closed"
     assert close_failed.success is False
     assert close_failed.failure_reason == "cannot close"

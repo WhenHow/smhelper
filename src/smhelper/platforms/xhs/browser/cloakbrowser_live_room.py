@@ -23,6 +23,7 @@ LIVE_FINISH_TEXT = "\u76f4\u64ad\u5df2\u7ed3\u675f"
 DEFAULT_WINDOW_WIDTH = 1280
 DEFAULT_WINDOW_HEIGHT = 900
 DEFAULT_ACTION_SETTLE_MS = 150
+DEFAULT_HEALTH_CHECK_TIMEOUT_MS = 3_000
 DEFAULT_LIVE_STATUS_CHECKS = 30
 DEFAULT_LIVE_STATUS_WAIT_MS = 1_000
 DEFAULT_HUMAN_PRESET = "default"
@@ -123,6 +124,15 @@ class XhsCloakBrowserLiveRoomSession:
         self.page.wait_for_selector(COMMENT_SEND_BUTTON_SELECTOR, timeout=10_000)
         self.page.locator(COMMENT_SEND_BUTTON_SELECTOR).first.click(timeout=10_000)
         self.page.wait_for_timeout(self.action_settle_ms)
+
+    def check_health(self) -> None:
+        """Verify the session page is still ready for comment operations."""
+        self.page.wait_for_selector(
+            COMMENT_INPUT_SELECTOR,
+            timeout=DEFAULT_HEALTH_CHECK_TIMEOUT_MS,
+        )
+        if not _is_visible(page=self.page, selector=COMMENT_INPUT_SELECTOR):
+            raise RuntimeError("comment input is not available")
 
     def close(self) -> None:
         """Close the underlying browser context."""

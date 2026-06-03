@@ -5,11 +5,13 @@ from dataclasses import dataclass, field
 from smhelper.infrastructure.task_queue.celery.app import create_celery_app
 from smhelper.infrastructure.task_queue.celery.publisher import (
     BrowserTaskPublisher,
+    CheckSessionPayload,
     CloseSessionPayload,
     EnterLiveRoomPayload,
     SendCommentPayload,
 )
 from smhelper.infrastructure.task_queue.celery.tasks import (
+    CHECK_SESSION_TASK,
     CLOSE_SESSION_TASK,
     ENTER_LIVE_ROOM_TASK,
     SEND_COMMENT_TASK,
@@ -130,4 +132,22 @@ def test_browser_task_publisher_never_sends_storage_state_in_payload() -> None:
     assert [call[0] for call in celery_app.calls] == [
         SEND_COMMENT_TASK,
         CLOSE_SESSION_TASK,
+    ]
+
+
+def test_browser_task_publisher_sends_check_session_payload_to_node_queue() -> None:
+    celery_app = FakeCeleryApp()
+
+    BrowserTaskPublisher(celery_app=celery_app).check_session(
+        queue_name="node.node-a.browser",
+        payload=CheckSessionPayload(session_id="session-1"),
+    )
+
+    assert celery_app.calls == [
+        (
+            CHECK_SESSION_TASK,
+            {"session_id": "session-1"},
+            "node.node-a.browser",
+            None,
+        )
     ]

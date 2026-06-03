@@ -8,6 +8,7 @@ from smhelper.infrastructure.task_queue.celery.node_tasks import (
     register_node_browser_tasks,
 )
 from smhelper.infrastructure.task_queue.celery.tasks import (
+    CHECK_SESSION_TASK,
     CLOSE_SESSION_TASK,
     ENTER_LIVE_ROOM_TASK,
     SEND_COMMENT_TASK,
@@ -41,6 +42,9 @@ class FakeNodeHandler:
     def close_session(self, payload: object) -> None:
         self.calls.append(("close", getattr(payload, "session_id")))
 
+    def check_session(self, payload: object) -> None:
+        self.calls.append(("check", getattr(payload, "session_id")))
+
 
 def test_register_node_browser_tasks_builds_payloads_and_delegates_to_handler() -> None:
     app = FakeCeleryTaskRegistry()
@@ -60,10 +64,12 @@ def test_register_node_browser_tasks_builds_payloads_and_delegates_to_handler() 
         account_id="account-1",
         final_text="hello",
     )
+    app.tasks[CHECK_SESSION_TASK](session_id="session-1")
     app.tasks[CLOSE_SESSION_TASK](session_id="session-1", reason="live_ended")
 
     assert handler.calls == [
         ("enter", "session-1"),
         ("send", "job-1"),
+        ("check", "session-1"),
         ("close", "session-1"),
     ]

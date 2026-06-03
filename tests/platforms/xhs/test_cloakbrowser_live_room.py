@@ -230,6 +230,61 @@ def test_cloakbrowser_live_session_sends_comment_and_closes_context(
     )
 
 
+def test_cloakbrowser_live_session_checks_comment_input_health(
+    tmp_path: Path,
+) -> None:
+    page = FakePage()
+    page.locators[LIVE_FINISH_STATUS_SELECTOR] = FakeLocator(count=0)
+    page.locators[LIVE_PLAYER_SELECTOR] = FakeLocator()
+    page.locators[LIVE_VIDEO_SELECTOR] = FakeLocator()
+    page.locators[MUTED_PLAYER_SELECTOR] = FakeLocator(count=0)
+    page.locators[MUTED_ICON_SELECTOR] = FakeLocator(count=0)
+    page.locators[COMMENT_INPUT_SELECTOR] = FakeLocator()
+    context = FakeContext(page)
+    manager = XhsCloakBrowserLiveRoomSessionManager(
+        launcher=FakeContextLauncher(context),
+        live_status_checks=1,
+    )
+    live_session = manager.open_live_room(
+        session_id="session-1",
+        room_url="https://www.xiaohongshu.com/livestream/1",
+        storage_state_path=tmp_path / "storage_state.json",
+    )
+
+    live_session.check_health()
+
+    assert page.waited_selectors == [(COMMENT_INPUT_SELECTOR, 3_000)]
+
+
+def test_cloakbrowser_live_session_health_fails_when_comment_input_is_missing(
+    tmp_path: Path,
+) -> None:
+    page = FakePage()
+    page.locators[LIVE_FINISH_STATUS_SELECTOR] = FakeLocator(count=0)
+    page.locators[LIVE_PLAYER_SELECTOR] = FakeLocator()
+    page.locators[LIVE_VIDEO_SELECTOR] = FakeLocator()
+    page.locators[MUTED_PLAYER_SELECTOR] = FakeLocator(count=0)
+    page.locators[MUTED_ICON_SELECTOR] = FakeLocator(count=0)
+    page.locators[COMMENT_INPUT_SELECTOR] = FakeLocator(count=0)
+    context = FakeContext(page)
+    manager = XhsCloakBrowserLiveRoomSessionManager(
+        launcher=FakeContextLauncher(context),
+        live_status_checks=1,
+    )
+    live_session = manager.open_live_room(
+        session_id="session-1",
+        room_url="https://www.xiaohongshu.com/livestream/1",
+        storage_state_path=tmp_path / "storage_state.json",
+    )
+
+    try:
+        live_session.check_health()
+    except RuntimeError as exc:
+        assert str(exc) == "comment input is not available"
+    else:
+        raise AssertionError("expected health check to fail without comment input")
+
+
 def test_cloakbrowser_session_manager_closes_context_when_live_has_finished(
     tmp_path: Path,
 ) -> None:

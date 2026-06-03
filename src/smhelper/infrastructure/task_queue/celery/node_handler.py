@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Protocol
 
 from smhelper.infrastructure.task_queue.celery.publisher import (
+    CheckSessionPayload,
     CloseSessionPayload,
     EnterLiveRoomPayload,
     SendCommentPayload,
@@ -74,6 +75,9 @@ class LiveRoomBrowserOperator(Protocol):
     def send_comment(self, *, session_id: str, final_text: str) -> BrowserActionResult:
         """Send text in an existing live room session."""
 
+    def check_session(self, *, session_id: str) -> BrowserActionResult:
+        """Check whether an existing live-room browser session is healthy."""
+
     def close_session(self, *, session_id: str) -> BrowserActionResult:
         """Close an existing live room session."""
 
@@ -125,6 +129,23 @@ class NodeBrowserTaskHandler:
             session_id=payload.session_id,
             account_id=payload.account_id,
             status="success" if result.success else "failed",
+            failure_reason=result.failure_reason,
+        )
+
+    def check_session(self, payload: CheckSessionPayload) -> None:
+        """Check a browser session and report whether it is still usable."""
+        try:
+            result = self.browser_operator.check_session(
+                session_id=payload.session_id,
+            )
+        except Exception as exc:  # noqa: BLE001 - local node failures must be reported.
+            result = BrowserActionResult(
+                success=False,
+                failure_reason=_failure_reason(exc),
+            )
+        self.center_api.report_session_status(
+            session_id=payload.session_id,
+            status="waiting" if result.success else "lost",
             failure_reason=result.failure_reason,
         )
 

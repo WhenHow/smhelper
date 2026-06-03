@@ -10,6 +10,7 @@ from smhelper.infrastructure.task_queue.celery.node_handler import (
     NodeBrowserTaskHandler,
 )
 from smhelper.infrastructure.task_queue.celery.publisher import (
+    CheckSessionPayload,
     CloseSessionPayload,
     EnterLiveRoomPayload,
     SendCommentPayload,
@@ -64,6 +65,7 @@ class FakeBrowserOperator(LiveRoomBrowserOperator):
     entered: list[tuple[str, str, Path]] = field(default_factory=list)
     sent: list[tuple[str, str]] = field(default_factory=list)
     closed: list[str] = field(default_factory=list)
+    checked: list[str] = field(default_factory=list)
 
     def enter_live_room(
         self,
@@ -87,6 +89,10 @@ class FakeBrowserOperator(LiveRoomBrowserOperator):
         self.closed.append(session_id)
         if self.close_error is not None:
             raise self.close_error
+        return self.result
+
+    def check_session(self, *, session_id: str) -> BrowserActionResult:
+        self.checked.append(session_id)
         return self.result
 
 
@@ -141,6 +147,31 @@ def test_node_handler_reports_closed_after_browser_close() -> None:
 
     assert browser.closed == ["session-1"]
     assert center.session_reports == [("session-1", "closed", None)]
+
+
+def test_node_handler_reports_waiting_after_browser_session_health_check() -> None:
+    center = FakeCenterApiClient(storage_state_path=Path("storage_state.json"))
+    browser = FakeBrowserOperator(result=BrowserActionResult(success=True))
+
+    NodeBrowserTaskHandler(center_api=center, browser_operator=browser).check_session(
+        CheckSessionPayload(session_id="session-1")
+    )
+
+    assert browser.checked == ["session-1"]
+    assert center.session_reports == [("session-1", "waiting", None)]
+
+
+def test_node_handler_reports_lost_when_browser_session_health_check_fails() -> None:
+    center = FakeCenterApiClient(storage_state_path=Path("storage_state.json"))
+    browser = FakeBrowserOperator(
+        result=BrowserActionResult(success=False, failure_reason="page closed")
+    )
+
+    NodeBrowserTaskHandler(center_api=center, browser_operator=browser).check_session(
+        CheckSessionPayload(session_id="session-1")
+    )
+
+    assert center.session_reports == [("session-1", "lost", "page closed")]
 
 
 def test_node_handler_reports_failed_when_storage_state_fetch_fails() -> None:

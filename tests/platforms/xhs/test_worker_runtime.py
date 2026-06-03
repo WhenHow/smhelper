@@ -6,6 +6,7 @@ from typing import Callable
 
 from smhelper.infrastructure.task_queue.celery.node_handler import CenterApiClient
 from smhelper.infrastructure.task_queue.celery.tasks import (
+    CHECK_SESSION_TASK,
     CLOSE_SESSION_TASK,
     ENTER_LIVE_ROOM_TASK,
     SEND_COMMENT_TASK,
@@ -186,6 +187,7 @@ def test_xhs_node_worker_runtime_uses_cloakbrowser_session_manager_by_default() 
     assert set(celery_app.tasks) == {
         ENTER_LIVE_ROOM_TASK,
         SEND_COMMENT_TASK,
+        CHECK_SESSION_TASK,
         CLOSE_SESSION_TASK,
     }
 
