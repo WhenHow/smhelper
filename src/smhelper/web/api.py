@@ -37,6 +37,7 @@ TERMINAL_SESSION_STATUS_VALUES = {
     AccountLiveSessionStatus.FAILED.value,
     AccountLiveSessionStatus.LOST.value,
 }
+CLOSING_SESSION_STATUS_VALUE = AccountLiveSessionStatus.CLOSING.value
 
 
 class AccountSessionRestarter(Protocol):
@@ -98,10 +99,15 @@ def report_session_status(
         session_record = db_session.get(AccountLiveSessionRecord, session_id)
         if session_record is None:
             raise HTTPException(status_code=404, detail="session not found")
+        reported_status = report.status.value
         if session_record.status in TERMINAL_SESSION_STATUS_VALUES:
             return {"status": "ignored"}
+        if (
+            session_record.status == CLOSING_SESSION_STATUS_VALUE
+            and reported_status not in TERMINAL_SESSION_STATUS_VALUES
+        ):
+            return {"status": "ignored"}
 
-        reported_status = report.status.value
         session_record.status = reported_status
         session_record.failure_reason = report.failure_reason
         session_record.last_heartbeat_at = now
