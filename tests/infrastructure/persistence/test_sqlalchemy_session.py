@@ -6,6 +6,7 @@ from sqlalchemy import select
 from smhelper.infrastructure.persistence.sqlalchemy.accounts import (
     PlatformAccountRecord,
 )
+import smhelper.infrastructure.persistence.sqlalchemy.schema as schema_module
 from smhelper.infrastructure.persistence.sqlalchemy.base import Base
 from smhelper.infrastructure.persistence.sqlalchemy.session import (
     SqlAlchemyUnitOfWork,
@@ -40,6 +41,57 @@ def test_session_factory_creates_sessions_for_configured_database_url() -> None:
     assert account is not None
     assert account.display_name == "Account 1"
     engine.dispose()
+
+
+def test_create_database_schema_disposes_engine_it_creates(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    engine = create_engine_from_url(f"sqlite+pysqlite:///{tmp_path / 'schema.db'}")
+    original_dispose = engine.dispose
+    disposed = False
+
+    def track_dispose() -> None:
+        nonlocal disposed
+        disposed = True
+        original_dispose()
+
+    monkeypatch.setattr(schema_module, "create_engine_from_url", lambda _: engine)
+    monkeypatch.setattr(engine, "dispose", track_dispose)
+
+    try:
+        table_names = schema_module.create_database_schema(database_url="ignored")
+    finally:
+        if not disposed:
+            original_dispose()
+
+    assert "platform_accounts" in table_names
+    assert disposed is True
+
+
+def test_create_database_schema_keeps_caller_owned_engine_open(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    engine = create_engine_from_url(
+        f"sqlite+pysqlite:///{tmp_path / 'caller-owned.db'}"
+    )
+    original_dispose = engine.dispose
+    disposed = False
+
+    def track_dispose() -> None:
+        nonlocal disposed
+        disposed = True
+        original_dispose()
+
+    monkeypatch.setattr(engine, "dispose", track_dispose)
+
+    try:
+        table_names = schema_module.create_database_schema(engine=engine)
+        assert "platform_accounts" in table_names
+        assert disposed is False
+    finally:
+        original_dispose()
 
 
 def test_unit_of_work_commits_on_success() -> None:

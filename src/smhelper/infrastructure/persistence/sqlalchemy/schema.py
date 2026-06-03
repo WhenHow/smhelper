@@ -25,11 +25,17 @@ def create_database_schema(
     caller should not need to know which persistence modules must be imported
     before SQLAlchemy has a complete metadata registry.
     """
-    resolved_engine = engine
-    if resolved_engine is None:
+    owns_engine = engine is None
+    if engine is None:
         resolved_database_url = database_url
         if resolved_database_url is None:
             resolved_database_url = RuntimeSettings.from_env().database_url
         resolved_engine = create_engine_from_url(resolved_database_url)
-    Base.metadata.create_all(resolved_engine)
-    return tuple(sorted(Base.metadata.tables))
+    else:
+        resolved_engine = engine
+    try:
+        Base.metadata.create_all(resolved_engine)
+        return tuple(sorted(Base.metadata.tables))
+    finally:
+        if owns_engine:
+            resolved_engine.dispose()
