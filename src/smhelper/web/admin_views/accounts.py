@@ -38,6 +38,7 @@ class AccountAuthStateAdmin(ModelView, model=AccountAuthStateRecord):
         "platform",
         "status",
         "storage_state_path",
+        "failure_reason",
         "updated_at",
     ]
     column_searchable_list: ClassVar[list[str]] = ["account_id", "storage_state_path"]

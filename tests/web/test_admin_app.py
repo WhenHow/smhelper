@@ -9,6 +9,7 @@ from sqlalchemy import create_engine
 from smhelper.infrastructure.persistence.sqlalchemy.session import (
     create_engine_from_url,
 )
+from smhelper.web.admin_views.accounts import AccountAuthStateAdmin
 from smhelper.web.admin import AdminCredentials, SingleAdminAuth
 from smhelper.web.app import create_app
 import smhelper.web.app as web_app
@@ -38,6 +39,17 @@ def test_create_app_registers_sqladmin_route_and_model_views() -> None:
         "SendAttemptAdmin",
     ]
     engine.dispose()
+
+
+def test_account_auth_state_admin_shows_metadata_without_raw_storage_state() -> None:
+    assert AccountAuthStateAdmin.column_list == [
+        "account_id",
+        "platform",
+        "status",
+        "storage_state_path",
+        "failure_reason",
+        "updated_at",
+    ]
 
 
 def test_create_app_wires_forbidden_terms_from_runtime_settings(
