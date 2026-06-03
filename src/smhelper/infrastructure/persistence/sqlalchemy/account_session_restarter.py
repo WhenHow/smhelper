@@ -20,6 +20,11 @@ from smhelper.live.domain.account_live_session import (
     AccountLiveSession,
     AccountLiveSessionStatus,
 )
+from smhelper.workers.domain.rendezvous_hashing import (
+    NoAvailableWorkerNode,
+    RendezvousHashingNodeSelector,
+)
+from smhelper.workers.domain.worker_node import WorkerNode
 
 
 class AccountEntryDispatcher(Protocol):
@@ -37,6 +42,7 @@ class SqlAlchemyAccountSessionRestarter:
     ids: IdGenerator
     dispatcher: AccountEntryDispatcher
     max_restarts: int = 2
+    selector: RendezvousHashingNodeSelector = RendezvousHashingNodeSelector()
 
     def restart_session(self, *, session_id: str) -> list[str]:
         """Create a replacement planned session for a restartable old session."""
@@ -56,7 +62,11 @@ class SqlAlchemyAccountSessionRestarter:
             old_session = self._to_domain(old_record)
             if not old_session.can_auto_restart(max_restarts=self.max_restarts):
                 return []
-            worker = session.get(WorkerNodeRecord, old_record.node_id)
+            worker = self._select_restart_worker(
+                session=session,
+                account_id=old_session.account_id,
+                platform=old_session.platform,
+            )
             if worker is None:
                 return []
 
@@ -67,7 +77,7 @@ class SqlAlchemyAccountSessionRestarter:
                     platform=old_session.platform,
                     room_url=old_session.room_url,
                     account_id=old_session.account_id,
-                    node_id=old_session.node_id,
+                    node_id=worker.id,
                     status=AccountLiveSessionStatus.PLANNED,
                     restart_count=old_session.restart_count + 1,
                     cooldown_until=old_session.cooldown_until,
@@ -77,6 +87,24 @@ class SqlAlchemyAccountSessionRestarter:
             )
 
         return self.dispatcher.dispatch([plan])
+
+    def _select_restart_worker(
+        self,
+        *,
+        session: Session,
+        account_id: str,
+        platform: str,
+    ) -> WorkerNode | None:
+        worker_records = session.scalars(select(WorkerNodeRecord)).all()
+        workers = [self._to_worker_node(record) for record in worker_records]
+        try:
+            return self.selector.select_node(
+                account_id=account_id,
+                nodes=workers,
+                platform=platform,
+            )
+        except NoAvailableWorkerNode:
+            return None
 
     @staticmethod
     def _has_active_session(
@@ -115,4 +143,15 @@ class SqlAlchemyAccountSessionRestarter:
             restart_count=record.restart_count,
             cooldown_until=record.cooldown_until,
             send_started_at=record.send_started_at,
+        )
+
+    @staticmethod
+    def _to_worker_node(record: WorkerNodeRecord) -> WorkerNode:
+        return WorkerNode(
+            id=record.id,
+            queue_name=record.queue_name,
+            supported_platforms=frozenset(record.supported_platforms),
+            max_browser_sessions=record.max_browser_sessions,
+            active_browser_sessions=record.active_browser_sessions,
+            online=record.online,
         )
