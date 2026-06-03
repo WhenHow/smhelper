@@ -74,6 +74,35 @@ def test_candidate_reject_records_reason_without_final_text() -> None:
     assert rejected.final_text is None
 
 
+def test_candidate_ignore_records_review_without_rejection_reason() -> None:
+    generated_at = datetime(2026, 6, 1, 12, 0, tzinfo=UTC)
+    reviewed_at = datetime(2026, 6, 1, 12, 1, tzinfo=UTC)
+    candidate = CandidateQuestion(
+        id="candidate-1",
+        live_task_id="live-1",
+        segment_id="segment-1",
+        question="Weak question?",
+        reason="weak context",
+        risk_level="medium",
+        raw_response="{}",
+        status=CandidateQuestionStatus.PENDING_REVIEW,
+        generated_at=generated_at,
+        final_text="Weak question?",
+        rejection_reason="old reason",
+    )
+
+    ignored = candidate.ignore(
+        reviewed_by="operator",
+        reviewed_at=reviewed_at,
+    )
+
+    assert ignored.status is CandidateQuestionStatus.IGNORED
+    assert ignored.final_text is None
+    assert ignored.reviewed_by == "operator"
+    assert ignored.reviewed_at == reviewed_at
+    assert ignored.rejection_reason is None
+
+
 def test_candidate_approval_requires_non_blank_final_text() -> None:
     candidate = CandidateQuestion(
         id="candidate-1",

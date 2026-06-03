@@ -34,6 +34,14 @@ class CandidateReviewer(Protocol):
     ) -> list[str]:
         """Reject pending candidates."""
 
+    def ignore(
+        self,
+        *,
+        candidate_ids: list[str],
+        reviewed_by: str,
+    ) -> list[str]:
+        """Ignore pending candidates."""
+
 
 class CandidateQuestionAdmin(ModelView, model=CandidateQuestionRecord):
     """Review, edit and approve generated candidate questions."""
@@ -96,6 +104,30 @@ class CandidateQuestionAdmin(ModelView, model=CandidateQuestionRecord):
             if self.candidate_reviewer is None:
                 raise RuntimeError("candidate reviewer is not configured")
             self.candidate_reviewer.reject(
+                candidate_ids=candidate_ids,
+                reviewed_by=reviewed_by,
+            )
+        return RedirectResponse(
+            request.headers.get("referer", "/admin/candidatequestion/list"),
+            status_code=302,
+        )
+
+    @action(
+        name="ignore",
+        label="Ignore",
+        confirmation_message="Ignore selected candidates?",
+    )
+    async def ignore_candidates(self, request: Request) -> RedirectResponse:
+        """Ignore selected pending candidates without dispatching send jobs."""
+        raw_pks = request.query_params.get("pks", "")
+        candidate_ids = [
+            candidate_id for candidate_id in raw_pks.split(",") if candidate_id
+        ]
+        if candidate_ids:
+            reviewed_by = str(request.session.get("admin_user", "admin"))
+            if self.candidate_reviewer is None:
+                raise RuntimeError("candidate reviewer is not configured")
+            self.candidate_reviewer.ignore(
                 candidate_ids=candidate_ids,
                 reviewed_by=reviewed_by,
             )

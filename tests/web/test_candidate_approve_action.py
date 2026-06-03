@@ -205,3 +205,61 @@ def test_sqladmin_candidate_reject_action_marks_pending_candidates_rejected(
         assert candidate.reviewed_at is not None
         assert candidate.rejection_reason == "operator_rejected"
     engine.dispose()
+
+
+def test_sqladmin_candidate_ignore_action_marks_pending_candidates_ignored(
+    tmp_path: Path,
+) -> None:
+    database_path = tmp_path / "smhelper.db"
+    engine = create_engine_from_url(f"sqlite+pysqlite:///{database_path}")
+    Base.metadata.create_all(engine)
+    publisher = FakeBrowserTaskPublisher()
+    app = create_app(
+        engine=engine,
+        admin_credentials=AdminCredentials(
+            username="admin",
+            password="secret",
+            secret_key="test-secret",
+        ),
+        browser_task_publisher=publisher,
+    )
+    generated_at = datetime(2026, 6, 2, 10, 0, tzinfo=UTC)
+    with Session(engine) as session:
+        session.add(
+            CandidateQuestionRecord(
+                id="candidate-1",
+                live_task_id="live-1",
+                segment_id="segment-1",
+                question="Weak question?",
+                reason="weak context",
+                risk_level="medium",
+                raw_response="{}",
+                status="pending_review",
+                final_text="Weak question?",
+                generated_at=generated_at,
+                rejection_reason="old reason",
+            )
+        )
+        session.commit()
+
+    with TestClient(app, follow_redirects=False) as client:
+        client.post(
+            "/admin/login",
+            data={"username": "admin", "password": "secret"},
+        )
+        response = client.get(
+            "/admin/candidate-question-record/action/ignore?pks=candidate-1",
+            headers={"Referer": "/admin/candidate-question-record/list"},
+        )
+
+    assert response.status_code == 302
+    assert publisher.sent == []
+    with Session(engine) as session:
+        candidate = session.get(CandidateQuestionRecord, "candidate-1")
+        assert candidate is not None
+        assert candidate.status == "ignored"
+        assert candidate.final_text is None
+        assert candidate.reviewed_by == "admin"
+        assert candidate.reviewed_at is not None
+        assert candidate.rejection_reason is None
+    engine.dispose()

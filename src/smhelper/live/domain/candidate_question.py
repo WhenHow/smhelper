@@ -19,6 +19,7 @@ class CandidateQuestionStatus(str, Enum):
     PENDING_REVIEW = "pending_review"
     APPROVED = "approved"
     REJECTED = "rejected"
+    IGNORED = "ignored"
     PARSE_FAILED = "parse_failed"
 
 
@@ -86,6 +87,23 @@ class CandidateQuestion:
             reviewed_by=reviewed_by,
             reviewed_at=reviewed_at,
             rejection_reason=reason.strip() or None,
+        )
+
+    def ignore(
+        self,
+        *,
+        reviewed_by: str,
+        reviewed_at: datetime,
+    ) -> CandidateQuestion:
+        """Return an ignored candidate without treating it as rejected."""
+        self._ensure_pending_review()
+        return replace(
+            self,
+            status=CandidateQuestionStatus.IGNORED,
+            final_text=None,
+            reviewed_by=reviewed_by,
+            reviewed_at=reviewed_at,
+            rejection_reason=None,
         )
 
     def _ensure_pending_review(self) -> None:
