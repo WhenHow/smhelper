@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from random import Random
 
@@ -64,6 +64,7 @@ class PlanAccountEntriesUseCase:
         shuffled_candidates = list(candidates)
         self.rng.shuffle(shuffled_candidates)
         planned: list[AccountEntryPlan] = []
+        capacity_nodes = list(nodes)
         cumulative_delay = 0
 
         for candidate in shuffled_candidates:
@@ -80,7 +81,7 @@ class PlanAccountEntriesUseCase:
 
             allowed_nodes = [
                 node
-                for node in nodes
+                for node in capacity_nodes
                 if candidate.node_binding.is_node_allowed(node.id)
             ]
             try:
@@ -111,6 +112,10 @@ class PlanAccountEntriesUseCase:
                     delay_seconds=cumulative_delay,
                 )
             )
+            capacity_nodes = self._reserve_node_slot(
+                nodes=capacity_nodes,
+                node_id=selected_node.id,
+            )
 
         return planned
 
@@ -127,3 +132,19 @@ class PlanAccountEntriesUseCase:
             and session.is_active
             for session in sessions
         )
+
+    @staticmethod
+    def _reserve_node_slot(
+        *,
+        nodes: list[WorkerNode],
+        node_id: str,
+    ) -> list[WorkerNode]:
+        return [
+            replace(
+                node,
+                active_browser_sessions=node.active_browser_sessions + 1,
+            )
+            if node.id == node_id
+            else node
+            for node in nodes
+        ]

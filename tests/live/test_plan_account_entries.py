@@ -134,3 +134,30 @@ def test_plan_account_entries_honors_account_node_binding() -> None:
 
     assert plans[0].session.node_id == "node-b"
     assert plans[0].queue_name == "node.node-b.browser"
+
+
+def test_plan_account_entries_reserves_node_capacity_within_the_same_batch() -> None:
+    plans = PlanAccountEntriesUseCase(
+        selector=RendezvousHashingNodeSelector(),
+        ids=SequenceIdGenerator(["session-1", "session-2"]),
+        rng=Random(3),
+    ).plan(
+        live_task_id="live-1",
+        platform="xhs",
+        room_url="https://example.com/live/1",
+        candidates=[_candidate("account-1"), _candidate("account-2")],
+        nodes=[
+            WorkerNode(
+                id="node-a",
+                queue_name="node.node-a.browser",
+                supported_platforms=frozenset({"xhs"}),
+                max_browser_sessions=1,
+                active_browser_sessions=0,
+            )
+        ],
+        existing_sessions=[],
+        now=datetime(2026, 6, 1, 12, 0, tzinfo=UTC),
+    )
+
+    assert len(plans) == 1
+    assert plans[0].queue_name == "node.node-a.browser"
