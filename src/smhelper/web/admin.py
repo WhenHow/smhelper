@@ -24,6 +24,7 @@ from smhelper.web.admin_views.candidates import (
 )
 from smhelper.web.admin_views.dispatch_jobs import DispatchJobAdmin, SendAttemptAdmin
 from smhelper.web.admin_views.live_tasks import LiveTaskAdmin, LiveTaskObserverPublisher
+from smhelper.web.admin_views.segments import LiveSegmentAdmin, TranscriptAdmin
 from smhelper.web.admin_views.sessions import AccountLiveSessionAdmin
 from smhelper.web.admin_views.workers import WorkerNodeAdmin
 
@@ -101,6 +102,8 @@ def configure_admin(
     admin.add_view(AccountAuthStateAdmin)
     admin.add_view(WorkerNodeAdmin)
     admin.add_view(LiveTaskAdmin)
+    admin.add_view(LiveSegmentAdmin)
+    admin.add_view(TranscriptAdmin)
     admin.add_view(CandidateQuestionAdmin)
     admin.add_view(AccountLiveSessionAdmin)
     admin.add_view(DispatchJobAdmin)

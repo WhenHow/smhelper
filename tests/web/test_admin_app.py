@@ -14,6 +14,7 @@ from smhelper.web.admin_views.accounts import AccountAuthStateAdmin
 from smhelper.web.admin_views.candidates import CandidateQuestionAdmin
 from smhelper.web.admin_views.dispatch_jobs import DispatchJobAdmin, SendAttemptAdmin
 from smhelper.web.admin_views.live_tasks import LiveTaskAdmin
+from smhelper.web.admin_views.segments import LiveSegmentAdmin, TranscriptAdmin
 from smhelper.web.app import create_app
 import smhelper.web.app as web_app
 
@@ -36,6 +37,8 @@ def test_create_app_registers_sqladmin_route_and_model_views() -> None:
         "AccountAuthStateAdmin",
         "WorkerNodeAdmin",
         "LiveTaskAdmin",
+        "LiveSegmentAdmin",
+        "TranscriptAdmin",
         "CandidateQuestionAdmin",
         "AccountLiveSessionAdmin",
         "DispatchJobAdmin",
@@ -115,6 +118,35 @@ def test_live_task_admin_shows_task_title_and_runtime_status() -> None:
         "created_at",
         "started_at",
         "ended_at",
+        "failure_reason",
+    ]
+
+
+def test_live_segment_admin_shows_media_artifact_paths() -> None:
+    assert LiveSegmentAdmin.column_list == [
+        "id",
+        "live_task_id",
+        "sequence",
+        "video_path",
+        "first_frame_path",
+        "last_frame_path",
+        "audio_path",
+        "completed",
+        "created_at",
+        "completed_at",
+    ]
+
+
+def test_transcript_admin_shows_asr_result_and_failure_state() -> None:
+    assert TranscriptAdmin.column_list == [
+        "id",
+        "live_task_id",
+        "segment_id",
+        "provider_name",
+        "text",
+        "raw_response",
+        "status",
+        "transcribed_at",
         "failure_reason",
     ]
 
