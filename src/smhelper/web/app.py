@@ -7,6 +7,7 @@ from typing import Protocol
 
 from fastapi import FastAPI
 from sqlalchemy import Engine
+from starlette.responses import RedirectResponse
 
 from smhelper.core.clock import Clock, SystemClock
 from smhelper.core.config import RuntimeSettings
@@ -79,6 +80,12 @@ def create_app(
 ) -> FastAPI:
     """Create the FastAPI application and attach SQLAdmin."""
     app = FastAPI(title="smhelper")
+
+    @app.get("/", include_in_schema=False)
+    def redirect_to_admin() -> RedirectResponse:
+        """Send operators to the SQLAdmin backend from the service root."""
+        return RedirectResponse("/admin")
+
     settings = RuntimeSettings.from_env()
     resolved_database_url = database_url or settings.database_url
     app_engine = (

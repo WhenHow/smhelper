@@ -59,6 +59,25 @@ def test_create_app_registers_sqladmin_route_and_model_views() -> None:
     engine.dispose()
 
 
+def test_root_path_redirects_to_admin_backend() -> None:
+    engine = create_engine_from_url("sqlite+pysqlite:///:memory:")
+    app = create_app(
+        engine=engine,
+        admin_credentials=AdminCredentials(
+            username="admin",
+            password="secret",
+            secret_key="test-secret",
+        ),
+    )
+
+    with TestClient(app, follow_redirects=False) as client:
+        response = client.get("/")
+
+    assert response.status_code == 307
+    assert response.headers["location"] == "/admin"
+    engine.dispose()
+
+
 def test_account_auth_state_admin_shows_metadata_without_raw_storage_state() -> None:
     assert AccountAuthStateAdmin.column_list == [
         "account_id",
