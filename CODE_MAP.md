@@ -71,6 +71,7 @@
 |       |   |       |-- live_task_shutdown_coordinator.py
 |       |   |       |-- live_task_starter.py
 |       |   |       |-- live_task_terminator.py
+|       |   |       |-- schema.py
 |       |   |       |-- segment_processor.py
 |       |   |       |-- segment_processor_factory.py
 |       |   |       |-- segment_task_scheduler.py
