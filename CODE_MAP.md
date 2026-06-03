@@ -67,6 +67,7 @@
 |       |   |       |-- candidate_dispatcher.py
 |       |   |       |-- candidate_reviewer.py
 |       |   |       |-- live.py
+|       |   |       |-- live_doctor.py
 |       |   |       |-- live_task_observer.py
 |       |   |       |-- live_task_shutdown_coordinator.py
 |       |   |       |-- live_task_starter.py
