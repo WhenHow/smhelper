@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from random import Random
 
 from sqlalchemy.orm import Session
@@ -354,6 +354,200 @@ def test_candidate_dispatcher_skips_unavailable_waiting_account() -> None:
                 node_id="node-a",
                 status="waiting",
                 active_slot_key="live-1:account-1",
+            )
+        )
+        session.add(
+            WorkerNodeRecord(
+                id="node-a",
+                queue_name="node.node-a.browser",
+                supported_platforms=["xhs"],
+                max_browser_sessions=10,
+                active_browser_sessions=1,
+                online=True,
+            )
+        )
+        session.commit()
+
+    dispatched = SqlAlchemyCandidateDispatcher(
+        session_factory=session_factory,
+        ids=SequenceIdGenerator(["job-1"]),
+        clock=FixedClock(now),
+        send_account_policy=SendAccountPolicy(rng=Random(1)),
+        browser_task_publisher=publisher,
+    ).approve_and_dispatch(candidate_ids=["candidate-1"], reviewed_by="admin")
+
+    assert dispatched == []
+    assert publisher.sent == []
+    with Session(engine) as session:
+        candidate = session.get(CandidateQuestionRecord, "candidate-1")
+        live_session = session.get(AccountLiveSessionRecord, "session-1")
+        jobs = session.query(DispatchJobRecord).all()
+        assert candidate is not None
+        assert candidate.status == "pending_review"
+        assert live_session is not None
+        assert live_session.status == "waiting"
+        assert jobs == []
+    engine.dispose()
+
+
+def test_candidate_dispatcher_skips_account_with_persisted_cooldown() -> None:
+    engine = create_engine_from_url("sqlite+pysqlite:///:memory:")
+    session_factory = create_session_factory(engine)
+    Base.metadata.create_all(engine)
+    now = datetime(2026, 6, 2, 10, 0, tzinfo=UTC)
+    publisher = FakeBrowserTaskPublisher()
+    with Session(engine) as session:
+        session.add(
+            LiveTaskRecord(
+                id="live-1",
+                platform="xhs",
+                room_url="https://example.com/live/1",
+                status="running",
+                segment_time_seconds=60,
+                created_at=now,
+                started_at=now,
+            )
+        )
+        session.add(
+            CandidateQuestionRecord(
+                id="candidate-1",
+                live_task_id="live-1",
+                segment_id="segment-1",
+                question="Does this work for oily skin?",
+                reason="The segment mentions skin type.",
+                risk_level="low",
+                raw_response="{}",
+                status="pending_review",
+                final_text="Is this suitable for oily skin?",
+                generated_at=now,
+            )
+        )
+        session.add(
+            PlatformAccountRecord(
+                id="account-1",
+                platform="xhs",
+                display_name="Account 1",
+                enabled=True,
+                daily_send_limit=10,
+                sends_today=0,
+                cooldown_until=now + timedelta(minutes=5),
+            )
+        )
+        session.add(
+            AccountAuthStateRecord(
+                account_id="account-1",
+                platform="xhs",
+                status="valid",
+                storage_state_path="data/auth/xhs/account-1/storage_state.json",
+            )
+        )
+        session.add(
+            AccountLiveSessionRecord(
+                id="session-1",
+                live_task_id="live-1",
+                platform="xhs",
+                room_url="https://example.com/live/1",
+                account_id="account-1",
+                node_id="node-a",
+                status="waiting",
+                active_slot_key="live-1:account-1",
+            )
+        )
+        session.add(
+            WorkerNodeRecord(
+                id="node-a",
+                queue_name="node.node-a.browser",
+                supported_platforms=["xhs"],
+                max_browser_sessions=10,
+                active_browser_sessions=1,
+                online=True,
+            )
+        )
+        session.commit()
+
+    dispatched = SqlAlchemyCandidateDispatcher(
+        session_factory=session_factory,
+        ids=SequenceIdGenerator(["job-1"]),
+        clock=FixedClock(now),
+        send_account_policy=SendAccountPolicy(rng=Random(1)),
+        browser_task_publisher=publisher,
+    ).approve_and_dispatch(candidate_ids=["candidate-1"], reviewed_by="admin")
+
+    assert dispatched == []
+    assert publisher.sent == []
+    with Session(engine) as session:
+        candidate = session.get(CandidateQuestionRecord, "candidate-1")
+        live_session = session.get(AccountLiveSessionRecord, "session-1")
+        jobs = session.query(DispatchJobRecord).all()
+        assert candidate is not None
+        assert candidate.status == "pending_review"
+        assert live_session is not None
+        assert live_session.status == "waiting"
+        assert jobs == []
+    engine.dispose()
+
+
+def test_candidate_dispatcher_skips_session_with_persisted_cooldown() -> None:
+    engine = create_engine_from_url("sqlite+pysqlite:///:memory:")
+    session_factory = create_session_factory(engine)
+    Base.metadata.create_all(engine)
+    now = datetime(2026, 6, 2, 10, 0, tzinfo=UTC)
+    publisher = FakeBrowserTaskPublisher()
+    with Session(engine) as session:
+        session.add(
+            LiveTaskRecord(
+                id="live-1",
+                platform="xhs",
+                room_url="https://example.com/live/1",
+                status="running",
+                segment_time_seconds=60,
+                created_at=now,
+                started_at=now,
+            )
+        )
+        session.add(
+            CandidateQuestionRecord(
+                id="candidate-1",
+                live_task_id="live-1",
+                segment_id="segment-1",
+                question="Does this work for oily skin?",
+                reason="The segment mentions skin type.",
+                risk_level="low",
+                raw_response="{}",
+                status="pending_review",
+                final_text="Is this suitable for oily skin?",
+                generated_at=now,
+            )
+        )
+        session.add(
+            PlatformAccountRecord(
+                id="account-1",
+                platform="xhs",
+                display_name="Account 1",
+                enabled=True,
+                daily_send_limit=10,
+                sends_today=0,
+            )
+        )
+        session.add(
+            AccountAuthStateRecord(
+                account_id="account-1",
+                platform="xhs",
+                status="valid",
+                storage_state_path="data/auth/xhs/account-1/storage_state.json",
+            )
+        )
+        session.add(
+            AccountLiveSessionRecord(
+                id="session-1",
+                live_task_id="live-1",
+                platform="xhs",
+                room_url="https://example.com/live/1",
+                account_id="account-1",
+                node_id="node-a",
+                status="waiting",
+                active_slot_key="live-1:account-1",
+                cooldown_until=now + timedelta(minutes=5),
             )
         )
         session.add(
