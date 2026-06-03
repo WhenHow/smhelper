@@ -8,7 +8,7 @@ from typing import Literal, Protocol, cast
 from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from starlette.responses import FileResponse
@@ -22,6 +22,7 @@ from smhelper.infrastructure.persistence.sqlalchemy.live import (
     DispatchJobRecord,
     SendAttemptRecord,
 )
+from smhelper.infrastructure.persistence.sqlalchemy.workers import WorkerNodeRecord
 from smhelper.live.domain.account_live_session import (
     RESTARTABLE_SESSION_STATUSES,
     AccountLiveSessionStatus,
@@ -64,6 +65,15 @@ class SendResultReport(BaseModel):
     failure_reason: str | None = None
 
 
+class WorkerHeartbeatReport(BaseModel):
+    """Worker-reported node capacity and liveness state."""
+
+    queue_name: str
+    supported_platforms: list[str]
+    max_browser_sessions: int = Field(ge=0)
+    active_browser_sessions: int = Field(ge=0)
+
+
 @router.get("/accounts/{platform}/{account_id}/storage-state")
 def get_account_storage_state(
     *,
@@ -84,6 +94,40 @@ def get_account_storage_state(
     if not storage_state_path.exists():
         raise HTTPException(status_code=404, detail="storage state file not found")
     return FileResponse(storage_state_path, media_type="application/json")
+
+
+@router.post("/workers/{node_id}/heartbeat")
+def report_worker_heartbeat(
+    *,
+    request: Request,
+    node_id: str,
+    report: WorkerHeartbeatReport,
+) -> dict[str, str]:
+    """Upsert trusted worker-node liveness and browser-capacity state."""
+    now = _now(request)
+    with Session(request.app.state.engine) as db_session:
+        worker = db_session.get(WorkerNodeRecord, node_id)
+        if worker is None:
+            db_session.add(
+                WorkerNodeRecord(
+                    id=node_id,
+                    queue_name=report.queue_name,
+                    supported_platforms=report.supported_platforms,
+                    max_browser_sessions=report.max_browser_sessions,
+                    active_browser_sessions=report.active_browser_sessions,
+                    online=True,
+                    last_heartbeat_at=now,
+                )
+            )
+        else:
+            worker.queue_name = report.queue_name
+            worker.supported_platforms = report.supported_platforms
+            worker.max_browser_sessions = report.max_browser_sessions
+            worker.active_browser_sessions = report.active_browser_sessions
+            worker.online = True
+            worker.last_heartbeat_at = now
+        db_session.commit()
+    return {"status": "ok"}
 
 
 @router.post("/live/sessions/{session_id}/status")

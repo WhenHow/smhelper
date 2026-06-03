@@ -153,6 +153,96 @@ def test_session_status_api_updates_worker_reported_session_state(
     engine.dispose()
 
 
+def test_worker_heartbeat_api_creates_online_worker_node(tmp_path: Path) -> None:
+    database_path = tmp_path / "smhelper.db"
+    engine = create_engine_from_url(f"sqlite+pysqlite:///{database_path}")
+    now = datetime(2026, 6, 2, 10, 0, tzinfo=UTC)
+    app = create_app(
+        engine=engine,
+        admin_credentials=AdminCredentials(
+            username="admin",
+            password="secret",
+            secret_key="test-secret",
+        ),
+        clock=FixedClock(now),
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/workers/node-a/heartbeat",
+            json={
+                "queue_name": "node.node-a.browser",
+                "supported_platforms": ["xhs"],
+                "max_browser_sessions": 4,
+                "active_browser_sessions": 2,
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok"}
+    with Session(engine) as session:
+        worker = session.get(WorkerNodeRecord, "node-a")
+        assert worker is not None
+        assert worker.queue_name == "node.node-a.browser"
+        assert worker.supported_platforms == ["xhs"]
+        assert worker.max_browser_sessions == 4
+        assert worker.active_browser_sessions == 2
+        assert worker.online is True
+        assert worker.last_heartbeat_at == now.replace(tzinfo=None)
+    engine.dispose()
+
+
+def test_worker_heartbeat_api_updates_existing_worker_node(tmp_path: Path) -> None:
+    database_path = tmp_path / "smhelper.db"
+    engine = create_engine_from_url(f"sqlite+pysqlite:///{database_path}")
+    now = datetime(2026, 6, 2, 10, 5, tzinfo=UTC)
+    app = create_app(
+        engine=engine,
+        admin_credentials=AdminCredentials(
+            username="admin",
+            password="secret",
+            secret_key="test-secret",
+        ),
+        clock=FixedClock(now),
+    )
+    with Session(engine) as session:
+        session.add(
+            WorkerNodeRecord(
+                id="node-a",
+                queue_name="old.queue",
+                supported_platforms=["douyin"],
+                max_browser_sessions=1,
+                active_browser_sessions=1,
+                online=False,
+                last_heartbeat_at=datetime(2026, 6, 2, 9, 0, tzinfo=UTC),
+            )
+        )
+        session.commit()
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/workers/node-a/heartbeat",
+            json={
+                "queue_name": "node.node-a.browser",
+                "supported_platforms": ["xhs"],
+                "max_browser_sessions": 3,
+                "active_browser_sessions": 0,
+            },
+        )
+
+    assert response.status_code == 200
+    with Session(engine) as session:
+        worker = session.get(WorkerNodeRecord, "node-a")
+        assert worker is not None
+        assert worker.queue_name == "node.node-a.browser"
+        assert worker.supported_platforms == ["xhs"]
+        assert worker.max_browser_sessions == 3
+        assert worker.active_browser_sessions == 0
+        assert worker.online is True
+        assert worker.last_heartbeat_at == now.replace(tzinfo=None)
+    engine.dispose()
+
+
 def test_session_status_api_rejects_unknown_session_status(tmp_path: Path) -> None:
     database_path = tmp_path / "smhelper.db"
     engine = create_engine_from_url(f"sqlite+pysqlite:///{database_path}")

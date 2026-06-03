@@ -113,3 +113,35 @@ def test_http_center_api_client_reports_send_result() -> None:
             15.0,
         )
     ]
+
+
+def test_http_center_api_client_reports_worker_heartbeat() -> None:
+    transport = FakeHttpTransport(responses=[b'{"status":"ok"}'])
+    client = HttpCenterApiClient(
+        base_url="https://center.example",
+        storage_state_dir=Path("storage-states"),
+        transport=transport,
+    )
+
+    client.report_worker_heartbeat(
+        node_id="node a",
+        queue_name="node.node-a.browser",
+        supported_platforms=["xhs"],
+        max_browser_sessions=4,
+        active_browser_sessions=2,
+    )
+
+    assert transport.requests == [
+        (
+            "POST",
+            "https://center.example/api/workers/node%20a/heartbeat",
+            {"Content-Type": "application/json"},
+            (
+                b'{"queue_name":"node.node-a.browser",'
+                b'"supported_platforms":["xhs"],'
+                b'"max_browser_sessions":4,'
+                b'"active_browser_sessions":2}'
+            ),
+            15.0,
+        )
+    ]

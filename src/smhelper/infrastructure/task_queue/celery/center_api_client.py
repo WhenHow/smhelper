@@ -5,12 +5,14 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Protocol
+from typing import Protocol, TypeAlias
 from urllib.error import HTTPError, URLError
 from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 from smhelper.core.exceptions import SmHelperError
+
+JsonBodyValue: TypeAlias = str | int | list[str] | None
 
 
 class CenterApiError(SmHelperError):
@@ -144,6 +146,31 @@ class HttpCenterApiClient:
             timeout_seconds=self.timeout_seconds,
         )
 
+    def report_worker_heartbeat(
+        self,
+        *,
+        node_id: str,
+        queue_name: str,
+        supported_platforms: list[str],
+        max_browser_sessions: int,
+        active_browser_sessions: int,
+    ) -> None:
+        """Report worker-node liveness and browser-capacity state to the center."""
+        self.transport.request(
+            method="POST",
+            url=f"{self._base_url}/api/workers/{_path_part(node_id)}/heartbeat",
+            headers={"Content-Type": "application/json"},
+            body=_json_body(
+                {
+                    "queue_name": queue_name,
+                    "supported_platforms": supported_platforms,
+                    "max_browser_sessions": max_browser_sessions,
+                    "active_browser_sessions": active_browser_sessions,
+                }
+            ),
+            timeout_seconds=self.timeout_seconds,
+        )
+
     @property
     def _base_url(self) -> str:
         return self.base_url.rstrip("/")
@@ -153,7 +180,7 @@ def _path_part(value: str) -> str:
     return quote(value, safe="")
 
 
-def _json_body(payload: dict[str, str | None]) -> bytes:
+def _json_body(payload: dict[str, JsonBodyValue]) -> bytes:
     return json.dumps(
         payload,
         ensure_ascii=False,
