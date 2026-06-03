@@ -46,8 +46,14 @@ uv run celery -A smhelper.infrastructure.task_queue.celery.center_worker.celery_
 
 小红书远端操作节点负责 CloakBrowser 入场、保持会话、发送留言和回传结果：
 
-```bash
-uv run celery -A smhelper.platforms.xhs.celery_worker.celery_app worker -Q node.<node_id>.browser -l info
+```powershell
+$env:SMHELPER_WORKER_NODE_ID = "node-1"
+$env:SMHELPER_WORKER_QUEUE_NAME = "node.node-1.browser"
+$env:SMHELPER_WORKER_MAX_BROWSER_SESSIONS = "1"
+$env:SMHELPER_CENTER_API_URL = "http://127.0.0.1:8000"
+uv run celery -A smhelper.platforms.xhs.celery_worker.celery_app worker -Q $env:SMHELPER_WORKER_QUEUE_NAME -l info
 ```
+
+远端 worker 启动完成后会通过中心 API 上报一次节点心跳；`SMHELPER_WORKER_NODE_ID` 未配置时保持旧行为，不自动注册节点。
 
 第一阶段旧的 `live-assistant` CLI 只用于可行性验证，正式链路以后以 Web 后台、中心 worker 和远端 worker 为准。

@@ -28,6 +28,9 @@ def test_runtime_settings_uses_env_state_path_and_default_platform(
             "SMHELPER_CELERY_RESULT_BACKEND_URL": "redis://:secret@redis:6379/3",
             "SMHELPER_CENTER_QUEUE_NAME": "center.custom",
             "SMHELPER_CENTER_API_URL": "https://center.example",
+            "SMHELPER_WORKER_NODE_ID": "node-a",
+            "SMHELPER_WORKER_QUEUE_NAME": "node.custom.browser",
+            "SMHELPER_WORKER_MAX_BROWSER_SESSIONS": "5",
             "SMHELPER_SEND_COOLDOWN_SECONDS": "300",
             "SMHELPER_FFMPEG_PATH": "ffmpeg-custom",
             "SMHELPER_LLM_MODEL": "vendor/main-model",
@@ -48,6 +51,9 @@ def test_runtime_settings_uses_env_state_path_and_default_platform(
     assert settings.celery_result_backend_url == "redis://:secret@redis:6379/3"
     assert settings.center_queue_name == "center.custom"
     assert settings.center_api_url == "https://center.example"
+    assert settings.worker_node_id == "node-a"
+    assert settings.worker_queue_name == "node.custom.browser"
+    assert settings.worker_max_browser_sessions == 5
     assert settings.send_cooldown_seconds == 300
     assert settings.ffmpeg_path == "ffmpeg-custom"
     assert settings.llm_model == "vendor/main-model"
@@ -76,6 +82,9 @@ def test_runtime_settings_uses_cwd_state_path_when_env_is_empty(
     assert settings.celery_result_backend_url == "redis://:tbui-666@127.0.0.1:6379/1"
     assert settings.center_queue_name == "center.live"
     assert settings.center_api_url == "http://127.0.0.1:8000"
+    assert settings.worker_node_id is None
+    assert settings.worker_queue_name is None
+    assert settings.worker_max_browser_sessions == 1
     assert settings.send_cooldown_seconds == 300
     assert settings.ffmpeg_path == "ffmpeg"
     assert settings.llm_model is None
@@ -97,6 +106,16 @@ def test_runtime_settings_rejects_invalid_send_cooldown(tmp_path: Path) -> None:
     with pytest.raises(ConfigurationError, match="send cooldown"):
         RuntimeSettings.from_env(
             {"SMHELPER_SEND_COOLDOWN_SECONDS": "-1"},
+            cwd=tmp_path,
+        )
+
+
+def test_runtime_settings_rejects_invalid_worker_max_browser_sessions(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(ConfigurationError, match="worker max browser sessions"):
+        RuntimeSettings.from_env(
+            {"SMHELPER_WORKER_MAX_BROWSER_SESSIONS": "-1"},
             cwd=tmp_path,
         )
 
