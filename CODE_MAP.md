@@ -61,6 +61,7 @@
 |       |   |       |-- __init__.py
 |       |   |       |-- account_entry_dispatcher.py
 |       |   |       |-- account_entry_planner.py
+|       |   |       |-- account_session_health_checker.py
 |       |   |       |-- account_session_restarter.py
 |       |   |       |-- accounts.py
 |       |   |       |-- base.py
@@ -197,6 +198,7 @@
     |   |-- persistence/
     |   |   |-- test_account_entry_dispatcher.py
     |   |   |-- test_account_entry_planner.py
+    |   |   |-- test_account_session_health_checker.py
     |   |   |-- test_account_session_restarter.py
     |   |   |-- test_candidate_dispatcher.py
     |   |   |-- test_candidate_reviewer.py

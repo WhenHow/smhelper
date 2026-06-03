@@ -28,6 +28,9 @@ from smhelper.infrastructure.persistence.sqlalchemy.account_entry_dispatcher imp
 from smhelper.infrastructure.persistence.sqlalchemy.account_entry_planner import (
     SqlAlchemyAccountEntryPlanner,
 )
+from smhelper.infrastructure.persistence.sqlalchemy.account_session_health_checker import (
+    SqlAlchemyAccountSessionHealthChecker,
+)
 from smhelper.infrastructure.persistence.sqlalchemy.live_task_observer import (
     SqlAlchemyLiveTaskObserverRunner,
 )
@@ -157,6 +160,10 @@ def build_configured_center_worker_runtime(
             session_factory=session_factory,
             clock=resolved_clock,
             shutdown_coordinator=shutdown_coordinator,
+        ),
+        session_health_checker=SqlAlchemyAccountSessionHealthChecker(
+            session_factory=session_factory,
+            browser_task_publisher=browser_task_publisher,
         ),
         segment_scheduler=SqlAlchemySegmentTaskScheduler(
             session_factory=session_factory,

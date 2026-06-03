@@ -104,6 +104,15 @@ class FakeSegmentTaskScheduler:
         return []
 
 
+@dataclass
+class FakeSessionHealthChecker:
+    live_task_ids: list[str] = field(default_factory=list)
+
+    def check_live_task_sessions(self, *, live_task_id: str) -> list[str]:
+        self.live_task_ids.append(live_task_id)
+        return []
+
+
 def test_live_task_observer_runner_starts_live_task_when_stream_is_discovered(
     tmp_path: Path,
 ) -> None:
@@ -184,6 +193,7 @@ def test_live_task_observer_runner_schedules_segments_while_live_and_on_end(
     entry_planner = FakeAccountEntryPlanner()
     shutdown_coordinator = FakeShutdownCoordinator()
     segment_scheduler = FakeSegmentTaskScheduler()
+    session_health_checker = FakeSessionHealthChecker()
     observer_session = FakeLiveStreamObservationSession(
         observations=[
             LiveStreamObservation(
@@ -228,6 +238,7 @@ def test_live_task_observer_runner_schedules_segments_while_live_and_on_end(
             shutdown_coordinator=shutdown_coordinator,
         ),
         segment_scheduler=segment_scheduler,
+        session_health_checker=session_health_checker,
     ).run_until_finished(
         live_task_id="live-1",
         observation_interval_ms=250,
@@ -241,6 +252,7 @@ def test_live_task_observer_runner_schedules_segments_while_live_and_on_end(
         ("live-1", False),
         ("live-1", True),
     ]
+    assert session_health_checker.live_task_ids == ["live-1", "live-1"]
     engine.dispose()
 
 

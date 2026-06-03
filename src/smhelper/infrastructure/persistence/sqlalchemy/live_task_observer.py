@@ -55,6 +55,13 @@ class LiveTaskSegmentScheduler(Protocol):
         """Schedule completed media segments for one live task."""
 
 
+class LiveTaskSessionHealthChecker(Protocol):
+    """Schedules worker-side health checks for active account sessions."""
+
+    def check_live_task_sessions(self, *, live_task_id: str) -> list[str]:
+        """Schedule health checks for account sessions of one live task."""
+
+
 @dataclass(frozen=True, slots=True)
 class LiveTaskObservationRunResult:
     """Result of one center-side live-task observation attempt."""
@@ -74,6 +81,7 @@ class SqlAlchemyLiveTaskObserverRunner:
     starter: LiveTaskStarter
     terminator: LiveTaskTerminator
     segment_scheduler: LiveTaskSegmentScheduler | None = None
+    session_health_checker: LiveTaskSessionHealthChecker | None = None
 
     def run_once(self, *, live_task_id: str) -> LiveTaskObservationRunResult | None:
         """Observe the task room once and start or update the task state."""
@@ -116,6 +124,7 @@ class SqlAlchemyLiveTaskObserverRunner:
                         live_task_id=live_task_id,
                         include_last=False,
                     )
+                    self._check_sessions(live_task_id=live_task_id)
                 if observation.status is LiveStreamObservationStatus.NOT_LIVE:
                     self._schedule_segments(
                         live_task_id=live_task_id,
@@ -204,6 +213,11 @@ class SqlAlchemyLiveTaskObserverRunner:
             live_task_id=live_task_id,
             include_last=include_last,
         )
+
+    def _check_sessions(self, *, live_task_id: str) -> None:
+        if self.session_health_checker is None:
+            return
+        self.session_health_checker.check_live_task_sessions(live_task_id=live_task_id)
 
     def _record_failure(self, *, live_task_id: str, failure_reason: str) -> None:
         with self.session_factory() as session:
