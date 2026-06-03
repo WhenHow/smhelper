@@ -33,3 +33,4 @@ skills-lock.json
 # project scratch space
 tmp/
 .smhelper/
+data/**
