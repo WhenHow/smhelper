@@ -141,6 +141,7 @@ def test_shutdown_coordinator_marks_timed_out_sending_session_lost() -> None:
         assert live_session.active_slot_key is None
         assert live_session.failure_reason == "shutdown_timeout"
         assert live_session.closed_at == now.replace(tzinfo=None)
+        assert live_session.send_started_at is None
     engine.dispose()
 
 

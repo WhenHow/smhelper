@@ -165,6 +165,7 @@ class SqlAlchemyLiveTaskShutdownCoordinator:
         record.status = AccountLiveSessionStatus.LOST.value
         record.failure_reason = reason
         record.closed_at = closed_at
+        record.send_started_at = None
         record.active_slot_key = AccountLiveSessionRecord.build_active_slot_key(
             live_task_id=record.live_task_id,
             account_id=record.account_id,
