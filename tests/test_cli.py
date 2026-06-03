@@ -5,7 +5,7 @@ from pathlib import Path
 
 from click.testing import CliRunner
 from sqlalchemy import Engine
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import create_engine, inspect, select
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import NullPool
 
@@ -39,6 +39,14 @@ def test_main_exposes_live_doctor_command() -> None:
 
     assert result.exit_code == 0
     assert "--database-url" in result.output
+
+
+def test_main_exposes_live_seed_dev_command() -> None:
+    result = CliRunner().invoke(main, ["live", "seed-dev", "--help"])
+
+    assert result.exit_code == 0
+    assert "--room-url" in result.output
+    assert "--storage-state-path" in result.output
 
 
 def test_main_exposes_db_init_command() -> None:
@@ -161,6 +169,136 @@ def test_live_doctor_passes_with_minimum_runtime_setup(tmp_path: Path) -> None:
     assert "[OK] celery configuration" in result.output
     assert "[OK] asr configuration" in result.output
     assert "[OK] llm configuration" in result.output
+
+
+def test_live_seed_dev_creates_minimum_runtime_setup(tmp_path: Path) -> None:
+    database_url = _sqlite_url(tmp_path / "seed-dev.db")
+
+    result = CliRunner().invoke(
+        main,
+        [
+            "live",
+            "seed-dev",
+            "--database-url",
+            database_url,
+            "--room-url",
+            "https://www.xiaohongshu.com/livestream/1",
+            "--account-id",
+            "account-1",
+            "--storage-state-path",
+            "data/auth/account-1/storage_state.json",
+            "--node-id",
+            "node-1",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "Seeded live dev setup" in result.output
+    engine = _sqlite_engine(database_url)
+    try:
+        with Session(engine) as session:
+            live_task = session.get(LiveTaskRecord, "live-1")
+            account = session.get(PlatformAccountRecord, "account-1")
+            auth_state = session.get(AccountAuthStateRecord, ("account-1", "xhs"))
+            worker = session.get(WorkerNodeRecord, "node-1")
+            assert live_task is not None
+            assert live_task.room_url == "https://www.xiaohongshu.com/livestream/1"
+            assert live_task.status == "pending"
+            assert account is not None
+            assert account.enabled is True
+            assert auth_state is not None
+            assert auth_state.status == "valid"
+            assert worker is not None
+            assert worker.queue_name == "node.node-1.browser"
+            assert worker.supported_platforms == ["xhs"]
+    finally:
+        engine.dispose()
+
+    doctor_result = CliRunner().invoke(
+        main,
+        ["live", "doctor", "--database-url", database_url],
+    )
+
+    assert doctor_result.exit_code == 0
+    assert "[OK] live task setup" in doctor_result.output
+    assert "[OK] account setup" in doctor_result.output
+    assert "[OK] worker setup" in doctor_result.output
+
+
+def test_live_seed_dev_updates_existing_runtime_setup(tmp_path: Path) -> None:
+    database_url = _sqlite_url(tmp_path / "seed-dev-update.db")
+    engine = _sqlite_engine(database_url)
+    create_database_schema(engine=engine)
+    _seed_minimum_live_runtime(engine)
+    with Session(engine) as session:
+        account = session.get_one(PlatformAccountRecord, "account-1")
+        worker = session.get_one(WorkerNodeRecord, "node-1")
+        account.sends_today = 19
+        worker.active_browser_sessions = 1
+        session.commit()
+    engine.dispose()
+
+    result = CliRunner().invoke(
+        main,
+        [
+            "live",
+            "seed-dev",
+            "--database-url",
+            database_url,
+            "--room-url",
+            "https://www.xiaohongshu.com/livestream/2",
+            "--account-id",
+            "account-1",
+            "--storage-state-path",
+            "data/auth/account-1/new_storage_state.json",
+            "--node-id",
+            "node-1",
+            "--max-browser-sessions",
+            "3",
+        ],
+    )
+
+    assert result.exit_code == 0
+    engine = _sqlite_engine(database_url)
+    try:
+        with Session(engine) as session:
+            live_task_urls = session.scalars(select(LiveTaskRecord.room_url)).all()
+            auth_state = session.get(AccountAuthStateRecord, ("account-1", "xhs"))
+            account = session.get(PlatformAccountRecord, "account-1")
+            worker = session.get(WorkerNodeRecord, "node-1")
+            assert live_task_urls == ["https://www.xiaohongshu.com/livestream/2"]
+            assert auth_state is not None
+            assert auth_state.storage_state_path == (
+                "data/auth/account-1/new_storage_state.json"
+            )
+            assert account is not None
+            assert account.sends_today == 0
+            assert worker is not None
+            assert worker.max_browser_sessions == 3
+            assert worker.active_browser_sessions == 0
+    finally:
+        engine.dispose()
+
+
+def test_live_seed_dev_rejects_invalid_browser_session_limit(tmp_path: Path) -> None:
+    result = CliRunner().invoke(
+        main,
+        [
+            "live",
+            "seed-dev",
+            "--database-url",
+            _sqlite_url(tmp_path / "seed-dev-invalid.db"),
+            "--room-url",
+            "https://www.xiaohongshu.com/livestream/1",
+            "--storage-state-path",
+            "data/auth/account-1/storage_state.json",
+            "--max-browser-sessions",
+            "0",
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert "0 is not in the range x>=1" in result.output
 
 
 def _sqlite_url(path: Path) -> str:

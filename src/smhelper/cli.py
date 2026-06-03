@@ -89,6 +89,60 @@ def live_doctor(ctx: click.Context, database_url: str | None) -> None:
         ctx.exit(1)
 
 
+@click.command(name="seed-dev")
+@click.option(
+    "--database-url",
+    default=None,
+    help="SQLAlchemy database URL. Defaults to SMHELPER_DATABASE_URL.",
+)
+@click.option("--room-url", required=True, help="Xiaohongshu live room URL.")
+@click.option("--live-task-id", default="live-1", show_default=True)
+@click.option("--account-id", default="account-1", show_default=True)
+@click.option(
+    "--storage-state-path",
+    required=True,
+    help="Path to the account storage_state.json on the center node.",
+)
+@click.option("--node-id", default="node-1", show_default=True)
+@click.option(
+    "--max-browser-sessions",
+    default=1,
+    show_default=True,
+    type=click.IntRange(1),
+)
+def live_seed_dev(
+    database_url: str | None,
+    room_url: str,
+    live_task_id: str,
+    account_id: str,
+    storage_state_path: str,
+    node_id: str,
+    max_browser_sessions: int,
+) -> None:
+    """Create or update minimum development data for local live testing."""
+    from smhelper.infrastructure.persistence.sqlalchemy.live_seed_dev import (
+        seed_live_dev_setup,
+    )
+
+    result = seed_live_dev_setup(
+        database_url=database_url,
+        room_url=room_url,
+        live_task_id=live_task_id,
+        account_id=account_id,
+        storage_state_path=storage_state_path,
+        node_id=node_id,
+        max_browser_sessions=max_browser_sessions,
+    )
+    click.echo(
+        "Seeded live dev setup: "
+        f"live_task={result.live_task_id} "
+        f"account={result.account_id} "
+        f"node={result.node_id} "
+        f"queue={result.queue_name}"
+    )
+
+
+live.add_command(live_seed_dev)
 live.add_command(live_doctor)
 main.add_command(create_live_assistant_cli(), name="live-assistant")
 main.add_command(db, name="db")

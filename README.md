@@ -15,6 +15,7 @@
 ```bash
 uv sync
 uv run smhelper db init
+uv run smhelper live seed-dev --room-url "https://www.xiaohongshu.com/livestream/<room_id>" --account-id account-1 --storage-state-path data/auth/account-1/storage_state.json --node-id node-1
 uv run smhelper live doctor
 uv run smhelper web --host 127.0.0.1 --port 8000
 ```
@@ -30,6 +31,8 @@ uv run smhelper web --database-url "mysql+pymysql://root:@127.0.0.1:3306/smhelpe
 ```
 
 `live doctor` 是只读检查命令，不会创建表或写入业务数据。它用于确认数据库表、直播任务、账号登录态、Worker 节点、Celery、ffmpeg、ASR 和 LLM 配置是否满足第一阶段本地测试前置条件。
+
+`live seed-dev` 是本地开发数据入口，会创建或更新一组最小 LiveTask、PlatformAccount、AccountAuthState 和 WorkerNode 记录。它只用于本地测试，不替代后续正式后台录入流程。
 
 ## Worker 入口
 
