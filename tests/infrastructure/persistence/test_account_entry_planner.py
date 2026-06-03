@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from random import Random
 
 from sqlalchemy import select
@@ -282,6 +282,76 @@ def test_account_entry_planner_skips_ended_live_task() -> None:
     assert publisher.sent == []
     with Session(engine) as session:
         assert session.scalars(select(AccountLiveSessionRecord)).all() == []
+    engine.dispose()
+
+
+def test_account_entry_planner_skips_account_with_persisted_cooldown() -> None:
+    engine = create_engine_from_url("sqlite+pysqlite:///:memory:")
+    session_factory = create_session_factory(engine)
+    Base.metadata.create_all(engine)
+    now = datetime(2026, 6, 2, 10, 0, tzinfo=UTC)
+    publisher = FakeEntryTaskPublisher()
+
+    with Session(engine) as session:
+        session.add(
+            LiveTaskRecord(
+                id="live-1",
+                platform="xhs",
+                room_url="https://example.com/live/1",
+                status="running",
+                segment_time_seconds=60,
+                created_at=now,
+            )
+        )
+        session.add(
+            PlatformAccountRecord(
+                id="account-1",
+                platform="xhs",
+                display_name="Account 1",
+                enabled=True,
+                daily_send_limit=10,
+                sends_today=0,
+                cooldown_until=now + timedelta(minutes=5),
+            )
+        )
+        session.add(
+            AccountAuthStateRecord(
+                account_id="account-1",
+                platform="xhs",
+                status="valid",
+                storage_state_path="data/auth/xhs/account-1/storage_state.json",
+            )
+        )
+        session.add(
+            WorkerNodeRecord(
+                id="node-a",
+                queue_name="node.node-a.browser",
+                supported_platforms=["xhs"],
+                max_browser_sessions=10,
+                active_browser_sessions=0,
+                online=True,
+            )
+        )
+        session.commit()
+
+    dispatched = SqlAlchemyAccountEntryPlanner(
+        session_factory=session_factory,
+        clock=FixedClock(now),
+        planner=PlanAccountEntriesUseCase(
+            selector=RendezvousHashingNodeSelector(),
+            ids=SequenceIdGenerator(["session-1"]),
+            rng=Random(3),
+        ),
+        dispatcher=SqlAlchemyAccountEntryDispatcher(
+            session_factory=session_factory,
+            browser_task_publisher=publisher,
+        ),
+    ).plan_and_dispatch(live_task_id="live-1")
+
+    assert dispatched == []
+    assert publisher.sent == []
+    with Session(engine) as session:
+        assert session.get(AccountLiveSessionRecord, "session-1") is None
     engine.dispose()
 
 

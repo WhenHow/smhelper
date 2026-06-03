@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Protocol
 
 from sqlalchemy import select
@@ -172,7 +173,7 @@ class SqlAlchemyAccountEntryPlanner:
             enabled=record.enabled,
             daily_send_limit=record.daily_send_limit,
             sends_today=record.sends_today,
-            cooldown_until=record.cooldown_until,
+            cooldown_until=_as_aware_utc(record.cooldown_until),
         )
 
     @staticmethod
@@ -214,12 +215,18 @@ class SqlAlchemyAccountEntryPlanner:
             account_id=record.account_id,
             node_id=record.node_id,
             status=AccountLiveSessionStatus(record.status),
-            opened_at=record.opened_at,
-            last_heartbeat_at=record.last_heartbeat_at,
-            last_send_at=record.last_send_at,
+            opened_at=_as_aware_utc(record.opened_at),
+            last_heartbeat_at=_as_aware_utc(record.last_heartbeat_at),
+            last_send_at=_as_aware_utc(record.last_send_at),
             failure_reason=record.failure_reason,
-            closed_at=record.closed_at,
+            closed_at=_as_aware_utc(record.closed_at),
             restart_count=record.restart_count,
-            cooldown_until=record.cooldown_until,
-            send_started_at=record.send_started_at,
+            cooldown_until=_as_aware_utc(record.cooldown_until),
+            send_started_at=_as_aware_utc(record.send_started_at),
         )
+
+
+def _as_aware_utc(value: datetime | None) -> datetime | None:
+    if value is None or value.tzinfo is not None:
+        return value
+    return value.replace(tzinfo=UTC)
