@@ -13,6 +13,7 @@ from smhelper.web.admin import AdminCredentials, SingleAdminAuth
 from smhelper.web.admin_views.accounts import AccountAuthStateAdmin
 from smhelper.web.admin_views.candidates import CandidateQuestionAdmin
 from smhelper.web.admin_views.dispatch_jobs import DispatchJobAdmin, SendAttemptAdmin
+from smhelper.web.admin_views.live_tasks import LiveTaskAdmin
 from smhelper.web.app import create_app
 import smhelper.web.app as web_app
 
@@ -97,6 +98,24 @@ def test_send_attempt_admin_shows_page_snapshot_for_failed_send_audit() -> None:
         "attempted_at",
         "failure_reason",
         "page_snapshot_path",
+    ]
+
+
+def test_live_task_admin_shows_task_title_and_runtime_status() -> None:
+    assert LiveTaskAdmin.column_list == [
+        "id",
+        "title",
+        "platform",
+        "room_url",
+        "status",
+        "stream_url",
+        "product_context",
+        "task_context",
+        "segment_time_seconds",
+        "created_at",
+        "started_at",
+        "ended_at",
+        "failure_reason",
     ]
 
 

@@ -34,6 +34,7 @@ class LiveTaskAdmin(ModelView, model=LiveTaskRecord):
     name_plural = "Live Tasks"
     column_list: ClassVar[list[str]] = [
         "id",
+        "title",
         "platform",
         "room_url",
         "status",
