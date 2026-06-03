@@ -14,6 +14,8 @@ class AccountLiveSessionAdmin(ModelView, model=AccountLiveSessionRecord):
 
     name_plural = "Account Live Sessions"
     can_create = False
+    can_edit = False
+    can_delete = False
     column_list: ClassVar[list[str]] = [
         "id",
         "live_task_id",

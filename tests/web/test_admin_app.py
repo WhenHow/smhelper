@@ -15,6 +15,7 @@ from smhelper.web.admin_views.candidates import CandidateQuestionAdmin
 from smhelper.web.admin_views.dispatch_jobs import DispatchJobAdmin, SendAttemptAdmin
 from smhelper.web.admin_views.live_tasks import LiveTaskAdmin
 from smhelper.web.admin_views.segments import LiveSegmentAdmin, TranscriptAdmin
+from smhelper.web.admin_views.sessions import AccountLiveSessionAdmin
 from smhelper.web.app import create_app
 import smhelper.web.app as web_app
 
@@ -149,6 +150,22 @@ def test_transcript_admin_shows_asr_result_and_failure_state() -> None:
         "transcribed_at",
         "failure_reason",
     ]
+
+
+@pytest.mark.parametrize(
+    "admin_view",
+    [
+        AccountLiveSessionAdmin,
+        DispatchJobAdmin,
+        SendAttemptAdmin,
+        LiveSegmentAdmin,
+        TranscriptAdmin,
+    ],
+)
+def test_runtime_artifact_admin_views_are_read_only(admin_view: type[object]) -> None:
+    assert admin_view.can_create is False
+    assert admin_view.can_edit is False
+    assert admin_view.can_delete is False
 
 
 def test_create_app_wires_forbidden_terms_from_runtime_settings(

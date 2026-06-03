@@ -17,6 +17,8 @@ class LiveSegmentAdmin(ModelView, model=LiveSegmentRecord):
 
     name_plural = "Live Segments"
     can_create = False
+    can_edit = False
+    can_delete = False
     column_list: ClassVar[list[str]] = [
         "id",
         "live_task_id",
@@ -37,6 +39,8 @@ class TranscriptAdmin(ModelView, model=TranscriptRecord):
 
     name_plural = "Transcripts"
     can_create = False
+    can_edit = False
+    can_delete = False
     column_list: ClassVar[list[str]] = [
         "id",
         "live_task_id",

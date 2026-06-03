@@ -166,6 +166,7 @@
 |       |       |-- candidates.py
 |       |       |-- dispatch_jobs.py
 |       |       |-- live_tasks.py
+|       |       |-- segments.py
 |       |       |-- sessions.py
 |       |       `-- workers.py
 |       `-- workers/

@@ -17,6 +17,8 @@ class DispatchJobAdmin(ModelView, model=DispatchJobRecord):
 
     name_plural = "Dispatch Jobs"
     can_create = False
+    can_edit = False
+    can_delete = False
     column_list: ClassVar[list[str]] = [
         "id",
         "candidate_question_id",
@@ -38,6 +40,8 @@ class SendAttemptAdmin(ModelView, model=SendAttemptRecord):
 
     name_plural = "Send Attempts"
     can_create = False
+    can_edit = False
+    can_delete = False
     column_list: ClassVar[list[str]] = [
         "id",
         "dispatch_job_id",
