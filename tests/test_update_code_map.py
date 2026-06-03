@@ -50,6 +50,21 @@ def test_generate_code_map_uses_real_tree_and_hides_ignored_paths(
     assert "-- CODE_MAP.md" not in content
 
 
+def test_generate_code_map_hides_runtime_data_paths(tmp_path: Path) -> None:
+    write(tmp_path / ".codex" / "code_map_ignore", "data/**\n")
+    write(tmp_path / "data" / ".gitkeep")
+    write(tmp_path / "data" / "auth" / "account-1" / "storage_state.json", "{}")
+    write(tmp_path / "src" / "smhelper" / "__init__.py")
+
+    module = load_update_code_map_module()
+    content = module.render_code_map(tmp_path)
+
+    assert "src/" in content
+    assert "__init__.py" in content
+    assert "data/" not in content
+    assert "storage_state.json" not in content
+
+
 def test_write_code_map_is_idempotent(tmp_path: Path) -> None:
     write(tmp_path / ".codex" / "code_map_ignore", "")
     write(tmp_path / "src" / "smhelper" / "__init__.py")
