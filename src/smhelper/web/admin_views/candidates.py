@@ -46,11 +46,13 @@ class CandidateQuestionAdmin(ModelView, model=CandidateQuestionRecord):
         "live_task_id",
         "segment_id",
         "question",
+        "reason",
         "risk_level",
         "status",
         "final_text",
         "reviewed_by",
         "reviewed_at",
+        "rejection_reason",
     ]
     column_searchable_list: ClassVar[list[str]] = ["id", "question", "final_text"]
 

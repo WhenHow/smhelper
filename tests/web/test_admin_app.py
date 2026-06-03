@@ -9,8 +9,9 @@ from sqlalchemy import create_engine
 from smhelper.infrastructure.persistence.sqlalchemy.session import (
     create_engine_from_url,
 )
-from smhelper.web.admin_views.accounts import AccountAuthStateAdmin
 from smhelper.web.admin import AdminCredentials, SingleAdminAuth
+from smhelper.web.admin_views.accounts import AccountAuthStateAdmin
+from smhelper.web.admin_views.candidates import CandidateQuestionAdmin
 from smhelper.web.app import create_app
 import smhelper.web.app as web_app
 
@@ -49,6 +50,22 @@ def test_account_auth_state_admin_shows_metadata_without_raw_storage_state() -> 
         "storage_state_path",
         "failure_reason",
         "updated_at",
+    ]
+
+
+def test_candidate_question_admin_shows_review_context_and_outcome() -> None:
+    assert CandidateQuestionAdmin.column_list == [
+        "id",
+        "live_task_id",
+        "segment_id",
+        "question",
+        "reason",
+        "risk_level",
+        "status",
+        "final_text",
+        "reviewed_by",
+        "reviewed_at",
+        "rejection_reason",
     ]
 
 
