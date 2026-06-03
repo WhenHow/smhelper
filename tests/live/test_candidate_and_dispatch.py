@@ -11,6 +11,7 @@ from smhelper.live.domain.candidate_question import (
 )
 from smhelper.live.domain.dispatch_job import DispatchJob, DispatchJobStatus
 from smhelper.live.domain.send_attempt import (
+    InvalidSendAttempt,
     SendAttempt,
     SendAttemptStatus,
     SuccessDetection,
@@ -190,3 +191,35 @@ def test_send_attempt_success_uses_operation_completed_detection() -> None:
     assert attempt.status is SendAttemptStatus.SUCCESS
     assert attempt.success_detection is SuccessDetection.OPERATION_COMPLETED
     assert attempt.failure_reason is None
+
+
+def test_send_attempt_failure_records_reason_with_operation_completed_detection() -> (
+    None
+):
+    attempted_at = datetime(2026, 6, 1, 12, 3, tzinfo=UTC)
+
+    attempt = SendAttempt.failed(
+        id="attempt-1",
+        dispatch_job_id="job-1",
+        account_live_session_id="session-1",
+        account_id="account-1",
+        attempted_at=attempted_at,
+        failure_reason=" input not found ",
+    )
+
+    assert attempt.status is SendAttemptStatus.FAILED
+    assert attempt.success_detection is SuccessDetection.OPERATION_COMPLETED
+    assert attempt.attempted_at == attempted_at
+    assert attempt.failure_reason == "input not found"
+
+
+def test_send_attempt_failure_requires_reason() -> None:
+    with pytest.raises(InvalidSendAttempt, match="failure reason"):
+        SendAttempt.failed(
+            id="attempt-1",
+            dispatch_job_id="job-1",
+            account_live_session_id="session-1",
+            account_id="account-1",
+            attempted_at=datetime(2026, 6, 1, 12, 3, tzinfo=UTC),
+            failure_reason=" ",
+        )
