@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -30,6 +31,7 @@ from smhelper.live.application.use_cases.plan_account_entries import (
     PlanAccountEntriesUseCase,
 )
 from smhelper.live.domain.account_live_session import (
+    ACTIVE_SESSION_STATUSES,
     AccountLiveSession,
     AccountLiveSessionStatus,
 )
@@ -122,8 +124,29 @@ class SqlAlchemyAccountEntryPlanner:
 
     @staticmethod
     def _load_nodes(*, session: Session) -> list[WorkerNode]:
+        active_session_counts = (
+            SqlAlchemyAccountEntryPlanner._load_active_session_counts_by_node(
+                session=session
+            )
+        )
         records = session.scalars(select(WorkerNodeRecord)).all()
-        return [SqlAlchemyAccountEntryPlanner._to_node(record) for record in records]
+        return [
+            SqlAlchemyAccountEntryPlanner._to_node(
+                record,
+                active_session_count=active_session_counts.get(record.id, 0),
+            )
+            for record in records
+        ]
+
+    @staticmethod
+    def _load_active_session_counts_by_node(*, session: Session) -> Counter[str]:
+        active_statuses = [status.value for status in ACTIVE_SESSION_STATUSES]
+        node_ids = session.scalars(
+            select(AccountLiveSessionRecord.node_id).where(
+                AccountLiveSessionRecord.status.in_(active_statuses)
+            )
+        ).all()
+        return Counter(node_ids)
 
     @staticmethod
     def _load_existing_sessions(
@@ -163,13 +186,21 @@ class SqlAlchemyAccountEntryPlanner:
         )
 
     @staticmethod
-    def _to_node(record: WorkerNodeRecord) -> WorkerNode:
+    def _to_node(
+        record: WorkerNodeRecord,
+        *,
+        active_session_count: int = 0,
+    ) -> WorkerNode:
+        active_browser_sessions = min(
+            record.max_browser_sessions,
+            max(record.active_browser_sessions, active_session_count),
+        )
         return WorkerNode(
             id=record.id,
             queue_name=record.queue_name,
             supported_platforms=frozenset(record.supported_platforms),
             max_browser_sessions=record.max_browser_sessions,
-            active_browser_sessions=record.active_browser_sessions,
+            active_browser_sessions=active_browser_sessions,
             online=record.online,
         )
 

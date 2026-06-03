@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -95,8 +96,17 @@ class SqlAlchemyAccountSessionRestarter:
         account_id: str,
         platform: str,
     ) -> WorkerNode | None:
+        active_session_counts = self._load_active_session_counts_by_node(
+            session=session
+        )
         worker_records = session.scalars(select(WorkerNodeRecord)).all()
-        workers = [self._to_worker_node(record) for record in worker_records]
+        workers = [
+            self._to_worker_node(
+                record,
+                active_session_count=active_session_counts.get(record.id, 0),
+            )
+            for record in worker_records
+        ]
         try:
             return self.selector.select_node(
                 account_id=account_id,
@@ -105,6 +115,16 @@ class SqlAlchemyAccountSessionRestarter:
             )
         except NoAvailableWorkerNode:
             return None
+
+    @staticmethod
+    def _load_active_session_counts_by_node(*, session: Session) -> Counter[str]:
+        active_statuses = [status.value for status in ACTIVE_SESSION_STATUSES]
+        node_ids = session.scalars(
+            select(AccountLiveSessionRecord.node_id).where(
+                AccountLiveSessionRecord.status.in_(active_statuses)
+            )
+        ).all()
+        return Counter(node_ids)
 
     @staticmethod
     def _has_active_session(
@@ -146,12 +166,20 @@ class SqlAlchemyAccountSessionRestarter:
         )
 
     @staticmethod
-    def _to_worker_node(record: WorkerNodeRecord) -> WorkerNode:
+    def _to_worker_node(
+        record: WorkerNodeRecord,
+        *,
+        active_session_count: int = 0,
+    ) -> WorkerNode:
+        active_browser_sessions = min(
+            record.max_browser_sessions,
+            max(record.active_browser_sessions, active_session_count),
+        )
         return WorkerNode(
             id=record.id,
             queue_name=record.queue_name,
             supported_platforms=frozenset(record.supported_platforms),
             max_browser_sessions=record.max_browser_sessions,
-            active_browser_sessions=record.active_browser_sessions,
+            active_browser_sessions=active_browser_sessions,
             online=record.online,
         )

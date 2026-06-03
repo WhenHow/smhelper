@@ -270,3 +270,83 @@ def test_account_session_restarter_uses_available_hrw_node_when_old_node_is_offl
         assert new_record.node_id == "node-b"
         assert new_record.active_slot_key == "live-1:account-1"
     engine.dispose()
+
+
+def test_account_session_restarter_skips_when_persisted_sessions_fill_capacity() -> (
+    None
+):
+    engine = create_engine_from_url("sqlite+pysqlite:///:memory:")
+    session_factory = create_session_factory(engine)
+    Base.metadata.create_all(engine)
+    publisher = FakeEntryTaskPublisher()
+    now = datetime(2026, 6, 2, 10, 0, tzinfo=UTC)
+    with Session(engine) as session:
+        session.add(
+            LiveTaskRecord(
+                id="live-1",
+                platform="xhs",
+                room_url="https://example.com/live/1",
+                status="running",
+                segment_time_seconds=60,
+                created_at=now,
+                started_at=now,
+            )
+        )
+        session.add(
+            WorkerNodeRecord(
+                id="node-a",
+                queue_name="node.node-a.browser",
+                supported_platforms=["xhs"],
+                max_browser_sessions=1,
+                active_browser_sessions=0,
+                online=True,
+            )
+        )
+        session.add_all(
+            [
+                AccountLiveSessionRecord(
+                    id="session-old",
+                    live_task_id="live-1",
+                    platform="xhs",
+                    room_url="https://example.com/live/1",
+                    account_id="account-1",
+                    node_id="node-a",
+                    status="failed",
+                    active_slot_key=None,
+                    closed_at=now,
+                    restart_count=0,
+                    failure_reason="browser_crashed",
+                ),
+                AccountLiveSessionRecord(
+                    id="session-other",
+                    live_task_id="live-1",
+                    platform="xhs",
+                    room_url="https://example.com/live/1",
+                    account_id="account-2",
+                    node_id="node-a",
+                    status="waiting",
+                    active_slot_key=AccountLiveSessionRecord.build_active_slot_key(
+                        live_task_id="live-1",
+                        account_id="account-2",
+                        status="waiting",
+                    ),
+                ),
+            ]
+        )
+        session.commit()
+
+    rebuilt = SqlAlchemyAccountSessionRestarter(
+        session_factory=session_factory,
+        ids=SequenceIdGenerator(["session-new"]),
+        dispatcher=SqlAlchemyAccountEntryDispatcher(
+            session_factory=session_factory,
+            browser_task_publisher=publisher,
+        ),
+        max_restarts=2,
+    ).restart_session(session_id="session-old")
+
+    assert rebuilt == []
+    assert publisher.sent == []
+    with Session(engine) as session:
+        assert session.get(AccountLiveSessionRecord, "session-new") is None
+    engine.dispose()
