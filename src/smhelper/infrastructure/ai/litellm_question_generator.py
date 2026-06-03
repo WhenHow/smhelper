@@ -115,25 +115,20 @@ class LiteLLMQuestionGenerator:
         if not isinstance(parsed, Mapping):
             raise QuestionGenerationError("Parsed LLM response is not an object")
 
-        parse_warning: str | None = None
-        question_source: Mapping[str, object] = parsed
-        questions = parsed.get("questions")
-        if isinstance(questions, list) and questions:
-            first_question = questions[0]
-            if not isinstance(first_question, Mapping):
-                raise QuestionGenerationError("First LLM candidate is not an object")
-            question_source = first_question
-            parse_warning = "multiple_candidates_returned"
+        if "questions" in parsed:
+            raise QuestionGenerationError(
+                "LLM response must be a single JSON object, not a candidate list"
+            )
 
-        question = self._required_text(question_source, "question")
-        reason = self._required_text(question_source, "reason")
-        risk_level = self._required_text(question_source, "risk_level")
+        question = self._required_text(parsed, "question")
+        reason = self._required_text(parsed, "reason")
+        risk_level = self._required_text(parsed, "risk_level")
         return GeneratedQuestionDraft(
             question=question,
             reason=reason,
             risk_level=risk_level,
             raw_response=content,
-            parse_warning=parse_warning,
+            parse_warning=None,
         )
 
     @staticmethod

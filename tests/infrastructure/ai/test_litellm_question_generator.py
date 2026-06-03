@@ -66,9 +66,7 @@ def test_litellm_question_generator_sets_local_cost_map_and_parses_json(
     assert environ["LITELLM_LOCAL_MODEL_COST_MAP"] == "True"
 
 
-def test_litellm_question_generator_uses_first_candidate_when_model_returns_list() -> (
-    None
-):
+def test_litellm_question_generator_rejects_multiple_candidates() -> None:
     completion = FakeCompletion(
         responses=[
             {
@@ -88,19 +86,17 @@ def test_litellm_question_generator_uses_first_candidate_when_model_returns_list
         ]
     )
 
-    draft = LiteLLMQuestionGenerator(
-        model="openai/gpt-4.1-mini",
-        completion=completion,
-    ).generate(
-        QuestionGenerationPrompt(
-            product_context="Product",
-            recent_transcript="Transcript",
-            task_context="Context",
+    with pytest.raises(QuestionGenerationError, match="single JSON object"):
+        LiteLLMQuestionGenerator(
+            model="openai/gpt-4.1-mini",
+            completion=completion,
+        ).generate(
+            QuestionGenerationPrompt(
+                product_context="Product",
+                recent_transcript="Transcript",
+                task_context="Context",
+            )
         )
-    )
-
-    assert draft.question == "First?"
-    assert draft.parse_warning == "multiple_candidates_returned"
 
 
 def test_litellm_question_generator_tries_fallback_model_after_primary_error() -> None:
