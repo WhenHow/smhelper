@@ -12,6 +12,7 @@ from smhelper.infrastructure.persistence.sqlalchemy.session import (
 from smhelper.web.admin import AdminCredentials, SingleAdminAuth
 from smhelper.web.admin_views.accounts import AccountAuthStateAdmin
 from smhelper.web.admin_views.candidates import CandidateQuestionAdmin
+from smhelper.web.admin_views.dispatch_jobs import DispatchJobAdmin
 from smhelper.web.app import create_app
 import smhelper.web.app as web_app
 
@@ -66,6 +67,22 @@ def test_candidate_question_admin_shows_review_context_and_outcome() -> None:
         "reviewed_by",
         "reviewed_at",
         "rejection_reason",
+    ]
+
+
+def test_dispatch_job_admin_shows_final_text_and_send_status() -> None:
+    assert DispatchJobAdmin.column_list == [
+        "id",
+        "candidate_question_id",
+        "live_task_id",
+        "account_live_session_id",
+        "account_id",
+        "final_text",
+        "status",
+        "created_at",
+        "started_at",
+        "finished_at",
+        "failure_reason",
     ]
 
 

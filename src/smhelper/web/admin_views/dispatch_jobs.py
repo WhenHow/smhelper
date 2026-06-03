@@ -23,6 +23,7 @@ class DispatchJobAdmin(ModelView, model=DispatchJobRecord):
         "live_task_id",
         "account_live_session_id",
         "account_id",
+        "final_text",
         "status",
         "created_at",
         "started_at",
