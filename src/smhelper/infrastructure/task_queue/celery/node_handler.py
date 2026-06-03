@@ -47,6 +47,17 @@ class CenterApiClient(Protocol):
     ) -> None:
         """Report send job result to the center."""
 
+    def report_worker_heartbeat(
+        self,
+        *,
+        node_id: str,
+        queue_name: str,
+        supported_platforms: list[str],
+        max_browser_sessions: int,
+        active_browser_sessions: int,
+    ) -> None:
+        """Report worker-node liveness and browser capacity to the center."""
+
 
 class LiveRoomBrowserOperator(Protocol):
     """Browser operations a worker node must provide."""

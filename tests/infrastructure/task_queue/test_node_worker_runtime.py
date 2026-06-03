@@ -14,6 +14,7 @@ from smhelper.infrastructure.task_queue.celery.node_handler import (
     LiveRoomBrowserOperator,
 )
 from smhelper.infrastructure.task_queue.celery.node_worker_runtime import (
+    NodeWorkerHeartbeat,
     build_node_worker_runtime,
 )
 from smhelper.infrastructure.task_queue.celery.publisher import (
@@ -43,6 +44,9 @@ class FakeCenterApiClient(CenterApiClient):
     storage_state_path: Path
     fetched: list[tuple[str, str]] = field(default_factory=list)
     session_reports: list[tuple[str, str, str | None]] = field(default_factory=list)
+    heartbeats: list[tuple[str, str, tuple[str, ...], int, int]] = field(
+        default_factory=list
+    )
 
     def fetch_storage_state(self, *, account_id: str, platform: str) -> Path:
         self.fetched.append((account_id, platform))
@@ -69,6 +73,25 @@ class FakeCenterApiClient(CenterApiClient):
         raise AssertionError(
             f"unexpected send result: {dispatch_job_id} {session_id} {account_id} "
             f"{status} {failure_reason}"
+        )
+
+    def report_worker_heartbeat(
+        self,
+        *,
+        node_id: str,
+        queue_name: str,
+        supported_platforms: list[str],
+        max_browser_sessions: int,
+        active_browser_sessions: int,
+    ) -> None:
+        self.heartbeats.append(
+            (
+                node_id,
+                queue_name,
+                tuple(supported_platforms),
+                max_browser_sessions,
+                active_browser_sessions,
+            )
         )
 
 
@@ -174,3 +197,27 @@ def test_node_worker_runtime_builds_handler_from_existing_payload_type(
     )
 
     assert center_api.session_reports == [("session-1", "waiting", None)]
+
+
+def test_node_worker_runtime_reports_configured_worker_heartbeat(
+    tmp_path: Path,
+) -> None:
+    celery_app = FakeCeleryApp()
+    center_api = FakeCenterApiClient(storage_state_path=tmp_path / "storage_state.json")
+
+    runtime = build_node_worker_runtime(
+        celery_app=celery_app,
+        center_api=center_api,
+        browser_operator=FakeBrowserOperator(),
+        heartbeat=NodeWorkerHeartbeat(
+            node_id="node-1",
+            queue_name="node.node-1.browser",
+            supported_platforms=["xhs"],
+            max_browser_sessions=4,
+            active_browser_sessions=2,
+        ),
+    )
+
+    runtime.report_heartbeat()
+
+    assert center_api.heartbeats == [("node-1", "node.node-1.browser", ("xhs",), 4, 2)]

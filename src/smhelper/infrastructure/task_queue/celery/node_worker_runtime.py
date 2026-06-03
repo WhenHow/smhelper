@@ -22,11 +22,36 @@ from smhelper.infrastructure.task_queue.celery.node_tasks import (
 
 
 @dataclass(frozen=True, slots=True)
+class NodeWorkerHeartbeat:
+    """Worker-node metadata reported to the center scheduler."""
+
+    node_id: str
+    queue_name: str
+    supported_platforms: tuple[str, ...]
+    max_browser_sessions: int
+    active_browser_sessions: int = 0
+
+
+@dataclass(frozen=True, slots=True)
 class NodeWorkerRuntime:
     """Assembled worker-node runtime objects."""
 
     celery_app: CeleryTaskRegistry
     handler: NodeBrowserTaskHandler
+    heartbeat: NodeWorkerHeartbeat | None = None
+
+    def report_heartbeat(self) -> bool:
+        """Report this worker node to the center when heartbeat metadata exists."""
+        if self.heartbeat is None:
+            return False
+        self.handler.center_api.report_worker_heartbeat(
+            node_id=self.heartbeat.node_id,
+            queue_name=self.heartbeat.queue_name,
+            supported_platforms=list(self.heartbeat.supported_platforms),
+            max_browser_sessions=self.heartbeat.max_browser_sessions,
+            active_browser_sessions=self.heartbeat.active_browser_sessions,
+        )
+        return True
 
 
 def build_node_worker_runtime(
@@ -35,6 +60,7 @@ def build_node_worker_runtime(
     settings: RuntimeSettings | None = None,
     celery_app: CeleryTaskRegistry | None = None,
     center_api: CenterApiClient | None = None,
+    heartbeat: NodeWorkerHeartbeat | None = None,
 ) -> NodeWorkerRuntime:
     """Build and register a browser-operation worker-node runtime."""
     resolved_settings = settings or RuntimeSettings.from_env()
@@ -54,4 +80,8 @@ def build_node_worker_runtime(
         browser_operator=browser_operator,
     )
     register_node_browser_tasks(app=resolved_celery_app, handler=handler)
-    return NodeWorkerRuntime(celery_app=resolved_celery_app, handler=handler)
+    return NodeWorkerRuntime(
+        celery_app=resolved_celery_app,
+        handler=handler,
+        heartbeat=heartbeat,
+    )

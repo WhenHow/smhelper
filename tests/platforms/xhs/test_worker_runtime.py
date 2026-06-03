@@ -43,6 +43,9 @@ class FakeCenterApiClient(CenterApiClient):
     send_reports: list[tuple[str, str, str, str, str | None]] = field(
         default_factory=list
     )
+    heartbeats: list[tuple[str, str, tuple[str, ...], int, int]] = field(
+        default_factory=list
+    )
 
     def fetch_storage_state(self, *, account_id: str, platform: str) -> Path:
         self.fetched.append((account_id, platform))
@@ -68,6 +71,25 @@ class FakeCenterApiClient(CenterApiClient):
     ) -> None:
         self.send_reports.append(
             (dispatch_job_id, session_id, account_id, status, failure_reason)
+        )
+
+    def report_worker_heartbeat(
+        self,
+        *,
+        node_id: str,
+        queue_name: str,
+        supported_platforms: list[str],
+        max_browser_sessions: int,
+        active_browser_sessions: int,
+    ) -> None:
+        self.heartbeats.append(
+            (
+                node_id,
+                queue_name,
+                tuple(supported_platforms),
+                max_browser_sessions,
+                active_browser_sessions,
+            )
         )
 
 
@@ -166,3 +188,21 @@ def test_xhs_node_worker_runtime_uses_cloakbrowser_session_manager_by_default() 
         SEND_COMMENT_TASK,
         CLOSE_SESSION_TASK,
     }
+
+
+def test_xhs_node_worker_runtime_reports_xhs_worker_heartbeat() -> None:
+    celery_app = FakeCeleryApp()
+    center_api = FakeCenterApiClient(storage_state_path=Path("storage_state.json"))
+
+    runtime = build_xhs_node_worker_runtime(
+        celery_app=celery_app,
+        center_api=center_api,
+        node_id="node-xhs-1",
+        max_browser_sessions=3,
+    )
+
+    runtime.report_heartbeat()
+
+    assert center_api.heartbeats == [
+        ("node-xhs-1", "node.node-xhs-1.browser", ("xhs",), 3, 0)
+    ]
