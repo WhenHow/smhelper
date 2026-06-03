@@ -181,8 +181,8 @@ def report_send_result(
         dispatch_job.failure_reason = report.failure_reason
         session_record.status = "waiting"
         session_record.send_started_at = None
-        session_record.last_send_at = now if normalized_status == "success" else None
         if normalized_status == "success" and account_record is not None:
+            session_record.last_send_at = now
             account_record.sends_today += 1
             cooldown_until = now + timedelta(seconds=send_cooldown_seconds)
             account_record.cooldown_until = cooldown_until
